@@ -103,19 +103,16 @@
             <div class="flex gap-1.5 items-center flex-wrap sm:flex-nowrap">
               <input type="text" v-model="form.modelName" placeholder="Model name or photo" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 min-w-[120px]">
               
-              <!-- 上傳相簿圖片 -->
               <label class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer flex-shrink-0 border" title="Upload from Gallery">
                 📁 Upload
                 <input type="file" accept="image/*" @change="captureEntryImage" class="hidden">
               </label>
 
-              <!-- 即時拍攝照片 -->
               <label class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer flex-shrink-0" title="Take a Photo">
                 📷 Snap
                 <input type="file" accept="image/*" capture="environment" @change="captureEntryImage" class="hidden">
               </label>
 
-              <!-- 掃描條碼 -->
               <button @click="startBarcodeScan" class="bg-gray-800 hover:bg-gray-900 text-white px-2.5 py-2 rounded-lg text-xs font-bold flex-shrink-0">
                 [|||] Scan
               </button>
@@ -123,7 +120,6 @@
           </div>
         </div>
 
-        <!-- 拍攝/上傳的照片預覽區域 -->
         <div v-if="form.image" class="flex items-center gap-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
           <img :src="form.image" class="w-20 h-20 object-cover rounded-lg border bg-white" />
           <div>
@@ -133,7 +129,6 @@
           </div>
         </div>
 
-        <!-- Barcode Scanner Modal -->
         <div v-show="isScanning" class="border-2 border-dashed border-gray-300 p-2 rounded-xl relative bg-black">
           <button @click="stopBarcodeScan" class="absolute top-2 right-2 z-10 bg-red-600 text-white px-3 py-1 rounded text-xs">Close</button>
           <div id="reader" class="w-full h-64"></div>
@@ -328,7 +323,6 @@
           <div><label class="block text-sm mb-1 font-medium text-gray-700">End Date</label><input type="date" v-model="reportEndDate" class="w-full border rounded-lg p-2 bg-white"></div>
         </div>
 
-        <!-- 總銷售金額與各付款方式加總 -->
         <div class="space-y-3">
           <h3 class="text-md font-bold text-gray-700">Sales Amount Overview</h3>
           
@@ -345,7 +339,6 @@
           </div>
         </div>
 
-        <!-- 【新增/加回】Daily Sales Breakdown by Payment Method -->
         <div class="space-y-3 pt-4 border-t">
           <h3 class="text-md font-bold text-gray-700">Daily Sales Breakdown by Payment Method</h3>
           <div class="overflow-x-auto">
@@ -375,7 +368,6 @@
           </div>
         </div>
 
-        <!-- Product Sales Quantity -->
         <div class="space-y-3 pt-4 border-t">
           <h3 class="text-md font-bold text-gray-700">Product Sales Quantity</h3>
           <table class="w-full text-left text-sm border rounded-lg">
@@ -528,7 +520,9 @@
   <script>
     const { createApp, ref, computed, onMounted } = Vue;
 
+    // 來自 gemini-code.js 的 CDN 網址設定
     const GITHUB_CDN_BASE = 'https://cdn.jsdelivr.net/gh/alexfongkc/salesrecordsystem@main';
+    const GITHUB_IMAGE_BASE = GITHUB_CDN_BASE;
 
     const storage = {
       async getItem(key) {
@@ -557,16 +551,17 @@
         const selectedManageBrand = ref('Sunrex');
         const paymentMethods = ref(['Credit Card', 'Cash', 'FPS', 'PayMe', 'UnionPay', 'WeChat Pay', 'Alipay', 'Others']);
 
+        // 整合 gemini-code.js 的 defaultProductsData
         const defaultProductsData = {
           'Sunrex': [
-            { model: 'Beta', modelNo: 'RX0001', hkd: 4200, usd: 530, image: `${GITHUB_CDN_BASE}/rx0001.png` },
-            { model: 'Beta Prague', modelNo: 'RX0001P', hkd: 4700, usd: 600, image: `${GITHUB_CDN_BASE}/rx0001p.png` },
-            { model: 'Anemone City', modelNo: 'RX0003', hkd: 4200, usd: 530, image: `${GITHUB_CDN_BASE}/rx0003.png` },
-            { model: 'Banana Reef', modelNo: 'RX0005', hkd: 4200, usd: 530, image: `${GITHUB_CDN_BASE}/rx0005.png` },
-            { model: '321', modelNo: 'RX0013', hkd: 4700, usd: 600, image: `${GITHUB_CDN_BASE}/rx0013.png` },
-            { model: '321 Artneun', modelNo: 'RX0013A', hkd: 5500, usd: 700, image: `${GITHUB_CDN_BASE}/rx0013a.png` },
-            { model: '611', modelNo: 'RX0021', hkd: 4700, usd: 600, image: `${GITHUB_CDN_BASE}/rx0021.png` },
-            { model: '611 Targa Classica', modelNo: 'RX0021T', hkd: 5500, usd: 700, image: `${GITHUB_CDN_BASE}/rx0021t.png` }
+            { model: 'Beta', modelNo: 'RX0001', hkd: 4200, usd: 530, image: `${GITHUB_IMAGE_BASE}/rx0001.png` },
+            { model: 'Beta Prague', modelNo: 'RX0001P', hkd: 4700, usd: 600, image: `${GITHUB_IMAGE_BASE}/rx0001p.png` },
+            { model: 'Anemone City', modelNo: 'RX0003', hkd: 4200, usd: 530, image: `${GITHUB_IMAGE_BASE}/rx0003.png` },
+            { model: 'Banana Reef', modelNo: 'RX0005', hkd: 4200, usd: 530, image: `${GITHUB_IMAGE_BASE}/rx0005.png` },
+            { model: '321', modelNo: 'RX0013', hkd: 4700, usd: 600, image: `${GITHUB_IMAGE_BASE}/rx0013.png` },
+            { model: '321 Artneun', modelNo: 'RX0013A', hkd: 5500, usd: 700, image: `${GITHUB_IMAGE_BASE}/rx0013a.png` },
+            { model: '611', modelNo: 'RX0021', hkd: 4700, usd: 600, image: `${GITHUB_IMAGE_BASE}/rx0021.png` },
+            { model: '611 Targa Classica', modelNo: 'RX0021T', hkd: 5500, usd: 700, image: `${GITHUB_IMAGE_BASE}/rx0021t.png` }
           ],
           'Le Tandy': [
             { model: 'Rieger Begonia', modelNo: 'LE3006PS01', hkd: 7300, usd: 930, image: null },
@@ -786,7 +781,6 @@
           return { brandBreakdown, paymentBreakdown, totalSalesAmount };
         });
 
-        // 【新增計算邏輯】計算每日付款方式銷售明細 (Daily Breakdown)
         const dailyPaymentBreakdown = computed(() => {
           const filtered = salesRecords.value.filter(r => r.rawDate >= reportStartDate.value && r.rawDate <= reportEndDate.value);
           
@@ -808,7 +802,6 @@
             dailyTotals[date] += r.total;
           });
 
-          // 日期由新至舊排序
           const sortedDates = Array.from(dateSet).sort((a, b) => b.localeCompare(a));
 
           return {
@@ -827,10 +820,14 @@
           saveProducts();
         };
 
+        // 整合 gemini-code.js 的 handleChopModeChange 邏輯
         const handleChopModeChange = async () => {
           if (selectedChopMode.value === 'custom') return;
-          if (selectedChopMode.value === 'none') activeCompanyChop.value = null;
-          else activeCompanyChop.value = `${GITHUB_CDN_BASE}/${selectedChopMode.value}`;
+          if (selectedChopMode.value === 'none') {
+            activeCompanyChop.value = null;
+          } else {
+            activeCompanyChop.value = `${GITHUB_IMAGE_BASE}/${selectedChopMode.value}`;
+          }
           
           await storage.setItem('selectedChopMode', selectedChopMode.value);
           await storage.setItem('activeCompanyChop', activeCompanyChop.value);
