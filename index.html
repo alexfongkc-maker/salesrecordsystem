@@ -919,6 +919,88 @@
           XLSX.writeFile(workbook, `Sales_Report_${getTodayDateStr()}.xlsx`);
         };
 
+// 1. 建立安全的持久化儲存封裝 (Storage Utility)
+const storage = {
+  async getItem(key) {
+    try {
+      if (window.localforage) {
+        const val = await localforage.getItem(key);
+        if (val !== null && val !== undefined) return val;
+      }
+    } catch (e) {
+      console.warn(`localforage error on get ${key}:`, e);
+    }
+    // Fallback 到原生 localStorage
+    const localVal = localStorage.getItem(key);
+    return localVal ? JSON.parse(localVal) : null;
+  },
+
+  async setItem(key, value) {
+    // 優先寫入原生 localStorage 確保同步持久化
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+      console.error(`localStorage set error for ${key}:`, e);
+    }
+    // 同步嘗試寫入 localforage
+    if (window.localforage) {
+      try {
+        await localforage.setItem(key, value);
+      } catch (e) {
+        console.warn(`localforage error on set ${key}:`, e);
+      }
+    }
+  }
+};
+
+// 2. 修改 setup() 中的 onMounted 與數據寫入邏輯
+onMounted(async () => {
+  setupPWA();
+
+  // 確保從 storage 安全讀取
+  const storedCompany = await storage.getItem('companyName');
+  if (storedCompany) companyName.value = storedCompany;
+
+  const storedCurr = await storage.getItem('defaultCurrency');
+  if (storedCurr) defaultCurrency.value = storedCurr;
+
+  const storedLocations = await storage.getItem('locations');
+  if (storedLocations) locations.value = storedLocations;
+
+  const storedBrands = await storage.getItem('brands');
+  if (storedBrands) brands.value = storedBrands;
+
+  const storedProducts = await storage.getItem('productsData');
+  if (storedProducts) productsData.value = storedProducts;
+
+  // 正確讀取並賦值 Sales Records
+  const storedRecords = await storage.getItem('salesRecords');
+  if (Array.isArray(storedRecords) && storedRecords.length > 0) {
+    salesRecords.value = storedRecords;
+  }
+  
+  if (locations.value.length > 0) form.value.location = locations.value[0];
+});
+
+// 3. 修改 submitSale, saveEditedRecord, deleteRecord 等寫入函數
+const submitSale = async () => {
+  if (!form.value.modelName) {
+    showToast('Please enter or select a model name', 'error');
+    return;
+  }
+  // ...建立 newRecord 邏輯維持不變 ...
+
+  salesRecords.value.unshift(newRecord);
+  
+  // 使用安全儲存封裝寫入
+  await storage.setItem('salesRecords', JSON.parse(JSON.stringify(salesRecords.value)));
+
+  showToast('Sales record saved successfully!');
+  form.value.notes = '';
+  form.value.quantity = 1;
+  calculateTotal();
+};
+
         // 註冊標準 Service Worker
         const setupPWA = () => {
           if ('serviceWorker' in navigator) {
