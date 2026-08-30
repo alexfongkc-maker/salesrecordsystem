@@ -5,16 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sales Record PWA System</title>
   <meta name="theme-color" content="#2563eb">
-  <!-- 引入獨立的 manifest.json -->
+  <!-- PWA Manifest Link -->
   <link rel="manifest" href="./manifest.json">
   
-  <!-- Tailwind CSS -->
+  <!-- External Libraries -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-  <!-- localForage -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
-  <!-- SheetJS -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
@@ -24,7 +21,6 @@
       #printable-receipt { position: absolute; left: 0; top: 0; width: 100%; }
       .no-print { display: none !important; }
     }
-    /* Toast 動畫效果 */
     .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
     .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-20px); }
   </style>
@@ -32,7 +28,7 @@
 <body class="bg-gray-50 text-gray-800 font-sans antialiased min-h-screen">
   <div id="app" class="max-w-5xl mx-auto p-4 md:p-6 pb-20">
     
-    <!-- 全局 Toast 彈出通知 -->
+    <!-- Global Toast Notification -->
     <transition name="toast">
       <div v-if="toast.show" :class="toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'" class="fixed top-5 right-5 z-50 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 font-medium border border-white/20">
         <svg v-if="toast.type === 'success'" class="w-5 h-5 fill-current" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
@@ -41,7 +37,7 @@
       </div>
     </transition>
 
-    <!-- Navigation Bar -->
+    <!-- Navigation Header -->
     <header class="flex flex-wrap justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 no-print gap-4">
       <div>
         <h1 class="text-xl font-bold text-gray-900">Sales Record System</h1>
@@ -61,7 +57,6 @@
         <h2 class="text-lg font-bold text-gray-800 border-b pb-2">New Sale Entry</h2>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- POS Location (From Settings) -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">POS Location</label>
             <select v-model="form.location" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
@@ -69,7 +64,6 @@
             </select>
           </div>
 
-          <!-- Brand Selection -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Brand</label>
             <div class="flex gap-2">
@@ -81,7 +75,6 @@
           </div>
         </div>
 
-        <!-- Product Models -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Preset Model</label>
@@ -99,7 +92,6 @@
           </div>
         </div>
 
-        <!-- Pricing & Amounts -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Original Price ({{ defaultCurrency }})</label>
@@ -125,7 +117,6 @@
           </div>
         </div>
 
-        <!-- Payment & Notes -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
@@ -202,7 +193,7 @@
       </div>
     </div>
 
-    <!-- Tab 3: Reports (Date Range Filter) -->
+    <!-- Tab 3: Reports -->
     <div v-if="activeTab === 'reports'" class="space-y-6 no-print">
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <div class="flex justify-between items-center border-b pb-2">
@@ -212,7 +203,6 @@
           </button>
         </div>
         
-        <!-- Date Filter -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
@@ -224,7 +214,6 @@
           </div>
         </div>
 
-        <!-- 1. Brand Product Sales Breakdown -->
         <div class="space-y-3">
           <h3 class="text-md font-bold text-gray-700">1. Product Sales Quantity by Brand</h3>
           <div class="overflow-x-auto border rounded-lg">
@@ -248,7 +237,6 @@
           </div>
         </div>
 
-        <!-- 2. Payment Method Totals -->
         <div class="space-y-3 pt-4">
           <h3 class="text-md font-bold text-gray-700">2. Sales Amount by Payment Method</h3>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -259,7 +247,6 @@
           </div>
         </div>
 
-        <!-- 3. Daily Breakdown by Payment Method -->
         <div class="space-y-3 pt-4">
           <h3 class="text-md font-bold text-gray-700">3. Daily Sales Breakdown by Payment Method</h3>
           <div class="overflow-x-auto border rounded-lg">
@@ -292,7 +279,6 @@
 
     <!-- Tab 4: Settings -->
     <div v-if="activeTab === 'settings'" class="space-y-6 no-print">
-      <!-- General Settings -->
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <h2 class="text-lg font-bold text-gray-800 border-b pb-2">System Settings</h2>
         
@@ -313,7 +299,6 @@
           </div>
         </div>
 
-        <!-- POS Locations Management -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">POS Locations</label>
           <div class="flex flex-wrap gap-2 mb-2">
@@ -329,10 +314,9 @@
         </div>
       </div>
 
-      <!-- CSV Backup & Restore -->
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <h2 class="text-lg font-bold text-gray-800 border-b pb-2">Sales Records Backup & Restore (CSV)</h2>
-        <p class="text-xs text-gray-500">匯出銷售紀錄為 CSV 格式作為本地備份，或從現有的 CSV 檔案匯入資料。</p>
+        <p class="text-xs text-gray-500">Export sales records to CSV for backup, or import existing records from a CSV file.</p>
         
         <div class="flex flex-wrap gap-4 pt-2">
           <button @click="exportCSVBackup" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow text-sm transition flex items-center gap-2">
@@ -348,7 +332,6 @@
         </div>
       </div>
 
-      <!-- Preset Product Database Management -->
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <div class="flex justify-between items-center border-b pb-2">
           <h2 class="text-lg font-bold text-gray-800">Preset Product Catalog</h2>
@@ -489,6 +472,37 @@
       return `${year}-${month}-${day}`;
     };
 
+    // Safe Persistent Storage Wrapper
+    const storage = {
+      async getItem(key) {
+        try {
+          if (window.localforage) {
+            const val = await localforage.getItem(key);
+            if (val !== null && val !== undefined) return val;
+          }
+        } catch (e) {
+          console.warn(`localforage error on get ${key}:`, e);
+        }
+        const localVal = localStorage.getItem(key);
+        return localVal ? JSON.parse(localVal) : null;
+      },
+
+      async setItem(key, value) {
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+        } catch (e) {
+          console.error(`localStorage set error for ${key}:`, e);
+        }
+        if (window.localforage) {
+          try {
+            await localforage.setItem(key, value);
+          } catch (e) {
+            console.warn(`localforage error on set ${key}:`, e);
+          }
+        }
+      }
+    };
+
     createApp({
       setup() {
         const activeTab = ref('entry');
@@ -578,25 +592,36 @@
 
         const currentProducts = computed(() => productsData.value[form.value.brand] || []);
 
+        const setupPWA = () => {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js')
+              .then((reg) => console.log('Service Worker registered:', reg.scope))
+              .catch((err) => console.error('Service Worker registration failed:', err));
+          }
+        };
+
         onMounted(async () => {
           setupPWA();
-          const storedCompany = await localforage.getItem('companyName');
+
+          const storedCompany = await storage.getItem('companyName');
           if (storedCompany) companyName.value = storedCompany;
 
-          const storedCurr = await localforage.getItem('defaultCurrency');
+          const storedCurr = await storage.getItem('defaultCurrency');
           if (storedCurr) defaultCurrency.value = storedCurr;
 
-          const storedLocations = await localforage.getItem('locations');
+          const storedLocations = await storage.getItem('locations');
           if (storedLocations) locations.value = storedLocations;
 
-          const storedBrands = await localforage.getItem('brands');
+          const storedBrands = await storage.getItem('brands');
           if (storedBrands) brands.value = storedBrands;
 
-          const storedProducts = await localforage.getItem('productsData');
+          const storedProducts = await storage.getItem('productsData');
           if (storedProducts) productsData.value = storedProducts;
 
-          const storedRecords = await localforage.getItem('salesRecords');
-          if (storedRecords) salesRecords.value = storedRecords;
+          const storedRecords = await storage.getItem('salesRecords');
+          if (Array.isArray(storedRecords) && storedRecords.length > 0) {
+            salesRecords.value = storedRecords;
+          }
           
           if (locations.value.length > 0) form.value.location = locations.value[0];
         });
@@ -638,13 +663,13 @@
           if (newLocationInput.value && !locations.value.includes(newLocationInput.value)) {
             locations.value.push(newLocationInput.value);
             newLocationInput.value = '';
-            await localforage.setItem('locations', locations.value);
+            await storage.setItem('locations', locations.value);
           }
         };
 
         const removeLocation = async (index) => {
           locations.value.splice(index, 1);
-          await localforage.setItem('locations', locations.value);
+          await storage.setItem('locations', locations.value);
         };
 
         const addBrand = async () => {
@@ -653,7 +678,7 @@
             brands.value.push(name);
             productsData.value[name] = [];
             form.value.brand = name;
-            await localforage.setItem('brands', brands.value);
+            await storage.setItem('brands', brands.value);
           }
         };
 
@@ -689,7 +714,7 @@
           };
 
           salesRecords.value.unshift(newRecord);
-          await localforage.setItem('salesRecords', salesRecords.value);
+          await storage.setItem('salesRecords', JSON.parse(JSON.stringify(salesRecords.value)));
 
           showToast('Sales record saved successfully!');
           form.value.notes = '';
@@ -779,7 +804,7 @@
               });
 
               salesRecords.value.sort((a, b) => b.timestamp - a.timestamp);
-              await localforage.setItem('salesRecords', salesRecords.value);
+              await storage.setItem('salesRecords', JSON.parse(JSON.stringify(salesRecords.value)));
 
               showToast(`CSV imported successfully! Imported ${addedCount} record(s).`);
             } catch (err) {
@@ -799,7 +824,7 @@
           const idx = salesRecords.value.findIndex(r => r.id === editingRecord.value.id);
           if (idx !== -1) {
             salesRecords.value[idx] = { ...editingRecord.value };
-            await localforage.setItem('salesRecords', salesRecords.value);
+            await storage.setItem('salesRecords', JSON.parse(JSON.stringify(salesRecords.value)));
             editingRecord.value = null;
             showToast('Sales record updated!');
           }
@@ -808,7 +833,7 @@
         const deleteRecord = async (index) => {
           if (confirm('Are you sure you want to delete this record?')) {
             salesRecords.value.splice(index, 1);
-            await localforage.setItem('salesRecords', salesRecords.value);
+            await storage.setItem('salesRecords', JSON.parse(JSON.stringify(salesRecords.value)));
             showToast('Record deleted.');
           }
         };
@@ -846,12 +871,12 @@
         };
 
         const saveSettings = async () => {
-          await localforage.setItem('companyName', companyName.value);
-          await localforage.setItem('defaultCurrency', defaultCurrency.value);
+          await storage.setItem('companyName', companyName.value);
+          await storage.setItem('defaultCurrency', defaultCurrency.value);
         };
 
         const saveProducts = async () => {
-          await localforage.setItem('productsData', productsData.value);
+          await storage.setItem('productsData', productsData.value);
         };
 
         const addNewProductToManage = () => {
@@ -917,97 +942,6 @@
           const workbook = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(workbook, worksheet, "Sales_Report");
           XLSX.writeFile(workbook, `Sales_Report_${getTodayDateStr()}.xlsx`);
-        };
-
-// 1. 建立安全的持久化儲存封裝 (Storage Utility)
-const storage = {
-  async getItem(key) {
-    try {
-      if (window.localforage) {
-        const val = await localforage.getItem(key);
-        if (val !== null && val !== undefined) return val;
-      }
-    } catch (e) {
-      console.warn(`localforage error on get ${key}:`, e);
-    }
-    // Fallback 到原生 localStorage
-    const localVal = localStorage.getItem(key);
-    return localVal ? JSON.parse(localVal) : null;
-  },
-
-  async setItem(key, value) {
-    // 優先寫入原生 localStorage 確保同步持久化
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (e) {
-      console.error(`localStorage set error for ${key}:`, e);
-    }
-    // 同步嘗試寫入 localforage
-    if (window.localforage) {
-      try {
-        await localforage.setItem(key, value);
-      } catch (e) {
-        console.warn(`localforage error on set ${key}:`, e);
-      }
-    }
-  }
-};
-
-// 2. 修改 setup() 中的 onMounted 與數據寫入邏輯
-onMounted(async () => {
-  setupPWA();
-
-  // 確保從 storage 安全讀取
-  const storedCompany = await storage.getItem('companyName');
-  if (storedCompany) companyName.value = storedCompany;
-
-  const storedCurr = await storage.getItem('defaultCurrency');
-  if (storedCurr) defaultCurrency.value = storedCurr;
-
-  const storedLocations = await storage.getItem('locations');
-  if (storedLocations) locations.value = storedLocations;
-
-  const storedBrands = await storage.getItem('brands');
-  if (storedBrands) brands.value = storedBrands;
-
-  const storedProducts = await storage.getItem('productsData');
-  if (storedProducts) productsData.value = storedProducts;
-
-  // 正確讀取並賦值 Sales Records
-  const storedRecords = await storage.getItem('salesRecords');
-  if (Array.isArray(storedRecords) && storedRecords.length > 0) {
-    salesRecords.value = storedRecords;
-  }
-  
-  if (locations.value.length > 0) form.value.location = locations.value[0];
-});
-
-// 3. 修改 submitSale, saveEditedRecord, deleteRecord 等寫入函數
-const submitSale = async () => {
-  if (!form.value.modelName) {
-    showToast('Please enter or select a model name', 'error');
-    return;
-  }
-  // ...建立 newRecord 邏輯維持不變 ...
-
-  salesRecords.value.unshift(newRecord);
-  
-  // 使用安全儲存封裝寫入
-  await storage.setItem('salesRecords', JSON.parse(JSON.stringify(salesRecords.value)));
-
-  showToast('Sales record saved successfully!');
-  form.value.notes = '';
-  form.value.quantity = 1;
-  calculateTotal();
-};
-
-        // 註冊標準 Service Worker
-        const setupPWA = () => {
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js')
-              .then((reg) => console.log('Service Worker registered:', reg.scope))
-              .catch((err) => console.error('Service Worker registration failed:', err));
-          }
         };
 
         return {
