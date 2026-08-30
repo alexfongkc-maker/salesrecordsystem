@@ -376,9 +376,9 @@
             <div class="flex items-center gap-4">
               <select v-model="selectedChopMode" @change="handleChopModeChange" class="border rounded-lg p-2 bg-white flex-1">
                 <option value="none">No Chop</option>
-                <option value="bridgestone.png">Bridgestone (bridgestone.png)</option>
-                <option value="sutec.png">Sutec (sutec.png)</option>
-                <option value="letandy.png">Le Tandy (letandy.png)</option>
+                <option value="bridgestone.png">Bridgestone</option>
+                <option value="sutec.png">Sutec</option>
+                <option value="letandy.png">Le Tandy</option>
                 <option value="custom">Upload Custom Chop...</option>
               </select>
               <input v-show="selectedChopMode === 'custom'" type="file" accept="image/*" @change="uploadCustomChop" class="text-sm">
@@ -514,7 +514,35 @@
         const defaultProductsData = {
           'Sunrex': [
             { model: 'Beta', modelNo: 'RX0001', hkd: 4200, usd: 530, image: null },
-            { model: 'Beta Prague', modelNo: 'RX0001P', hkd: 4700, usd: 600, image: null }
+            { model: 'Beta Prague', modelNo: 'RX0001P', hkd: 4700, usd: 600, image: null },
+            { model: 'Anemone City', modelNo: 'RX0003', hkd: 4200, usd: 530, image: null },
+            { model: 'Banana Reef', modelNo: 'RX0005', hkd: 4200, usd: 530, image: null },
+            { model: '321', modelNo: 'RX0013', hkd: 4700, usd: 600 },
+            { model: '321 Artneun', modelNo: 'RX0013A', hkd: 5500, usd: 700, image: null },
+            { model: '611', modelNo: 'RX0021', hkd: 4700, usd: 600, image: null },
+            { model: '611 Targa Classica', modelNo: 'RX0021T', hkd: 5500, usd: 700, image: null }
+          ],
+          'Le Tandy': [
+            { model: 'Rieger Begonia', modelNo: 'LE3006PS01', hkd: 7300, usd: 930, image: null },
+            { model: 'Orchid', modelNo: 'LE3006PS06', hkd: 7300, usd: 930, image: null },
+            { model: 'Snowflakes', modelNo: 'LE3006PS13', hkd: 7300, usd: 930, image: null },
+            { model: 'Duo Butterfly Dance', modelNo: 'LE3014PS20', hkd: 7300, usd: 930, image: null },
+            { model: 'Humming Bird', modelNo: 'LE3016PS33', hkd: 8800, usd: 1120, image: null },
+            { model: 'Eagle', modelNo: 'LE3009BA12', hkd: 8800, usd: 1120, image: null },
+            { model: 'Message', modelNo: 'LE3016PS03', hkd: 8800, usd: 1120, image: null },
+            { model: 'Pilot (Lapis)', modelNo: 'LE4021BA8X', hkd: 10800, usd: 1380, image: null },
+            { model: 'Pilot (Picasso Jasper)', modelNo: 'LE4021V002', hkd: 10800, usd: 1380, image: null }
+          ],
+          'Fubu': [
+            { model: 'FB500 Chronograph', modelNo: '', hkd: 499, usd: 0, image: null },
+            { model: 'All In', modelNo: '', hkd: 299, usd: 0, image: null }
+          ],
+          'Royal Collection': [
+            { model: 'Ear Ring', modelNo: '', hkd: 499, usd: 0, image: null },
+            { model: 'Necklace', modelNo: '', hkd: 299, usd: 0, image: null },
+            { model: 'Ring', modelNo: '', hkd: 0, usd: 0, image: null },
+            { model: 'Bracelet', modelNo: '', hkd: 0, usd: 0, image: null },
+            { model: 'Watch', modelNo: '', hkd: 3280, usd: 0, image: null }
           ]
         };
 
