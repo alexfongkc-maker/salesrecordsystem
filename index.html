@@ -5,20 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sales Record PWA System</title>
   <meta name="theme-color" content="#2563eb">
-  <!-- PWA Manifest Link -->
   <link rel="manifest" href="./manifest.json">
   
-  <!-- External Libraries -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
     @media print {
       body * { visibility: hidden; }
       #printable-receipt, #printable-receipt * { visibility: visible; }
-      #printable-receipt { position: absolute; left: 0; top: 0; width: 100%; }
+      #printable-receipt { 
+        position: absolute; 
+        left: 0; 
+        top: 0; 
+        width: 100%; 
+        max-width: 210mm; /* A4 Width */
+        padding: 15mm; 
+        box-sizing: border-box;
+      }
       .no-print { display: none !important; }
     }
     .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
@@ -28,11 +35,9 @@
 <body class="bg-gray-50 text-gray-800 font-sans antialiased min-h-screen">
   <div id="app" class="max-w-5xl mx-auto p-4 md:p-6 pb-20">
     
-    <!-- Global Toast Notification -->
+    <!-- Toast Notification -->
     <transition name="toast">
       <div v-if="toast.show" :class="toast.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'" class="fixed top-5 right-5 z-50 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 font-medium border border-white/20">
-        <svg v-if="toast.type === 'success'" class="w-5 h-5 fill-current" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
-        <svg v-else class="w-5 h-5 fill-current" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"/></svg>
         <span>{{ toast.message }}</span>
       </div>
     </transition>
@@ -54,7 +59,12 @@
     <!-- Tab 1: Sales Entry -->
     <div v-if="activeTab === 'entry'" class="space-y-6 no-print">
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
-        <h2 class="text-lg font-bold text-gray-800 border-b pb-2">New Sale Entry</h2>
+        <div class="flex justify-between items-center border-b pb-2">
+          <h2 class="text-lg font-bold text-gray-800">New Sale Entry</h2>
+          <button @click="syncRecords" class="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-bold hover:bg-indigo-200">
+            Sync {{ form.location }} Data
+          </button>
+        </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -63,7 +73,6 @@
               <option v-for="loc in locations" :key="loc" :value="loc">{{ loc }}</option>
             </select>
           </div>
-
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Brand</label>
             <div class="flex gap-2">
@@ -78,18 +87,49 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Preset Model</label>
-            <select v-model="form.productIndex" @change="onProductChange" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
-              <option :value="-1">-- Custom / Other Model --</option>
-              <option v-for="(prod, idx) in currentProducts" :key="idx" :value="idx">
-                {{ prod.model }} ({{ prod.modelNo || 'No Model No.' }})
-              </option>
-            </select>
+            <div class="flex gap-2 items-center">
+              <select v-model="form.productIndex" @change="onProductChange" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
+                <option :value="-1">-- Custom / Other Model --</option>
+                <option v-for="(prod, idx) in currentProducts" :key="idx" :value="idx">
+                  {{ prod.model }} ({{ prod.modelNo || 'No Model No.' }})
+                </option>
+              </select>
+              <img v-if="form.productIndex !== -1 && currentProducts[form.productIndex]?.image" :src="currentProducts[form.productIndex].image" class="w-10 h-10 object-cover rounded border" />
+            </div>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Model Name / Code</label>
-            <input type="text" v-model="form.modelName" placeholder="Enter model name" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Model Name / Code (Optional if photo taken)</label>
+            <div class="flex gap-2 items-center">
+              <input type="text" v-model="form.modelName" placeholder="Enter model name or snap photo" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+              
+              <!-- 拍攝產品照片按鈕 -->
+              <label class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-1 cursor-pointer flex-shrink-0">
+                📷 Snap
+                <input type="file" accept="image/*" capture="environment" @change="captureEntryImage" class="hidden">
+              </label>
+
+              <button @click="startBarcodeScan" class="bg-gray-800 text-white px-3 py-2 rounded-lg text-sm font-bold flex-shrink-0">
+                [|||] Scan
+              </button>
+            </div>
           </div>
+        </div>
+
+        <!-- 拍攝的照片預覽區域 -->
+        <div v-if="form.image" class="flex items-center gap-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+          <img :src="form.image" class="w-20 h-20 object-cover rounded-lg border bg-white" />
+          <div>
+            <div class="text-sm font-bold text-blue-900">Product Photo Captured</div>
+            <div class="text-xs text-blue-700">Photo attached and will be displayed in Records & Receipt</div>
+            <button @click="form.image = null" class="mt-1 text-xs text-red-600 hover:underline">Remove Photo</button>
+          </div>
+        </div>
+
+        <!-- Barcode Scanner Modal -->
+        <div v-show="isScanning" class="border-2 border-dashed border-gray-300 p-2 rounded-xl relative bg-black">
+          <button @click="stopBarcodeScan" class="absolute top-2 right-2 z-10 bg-red-600 text-white px-3 py-1 rounded text-xs">Close</button>
+          <div id="reader" class="w-full h-64"></div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl">
@@ -97,21 +137,18 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">Original Price ({{ defaultCurrency }})</label>
             <input type="number" v-model.number="form.originalPrice" @input="calculateTotal" min="0" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
           </div>
-
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
             <input type="number" v-model.number="form.quantity" @input="calculateTotal" min="1" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
           </div>
-
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Total Amount (Editable)</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
             <input type="number" v-model.number="form.total" @input="onTotalChange" min="0" class="w-full border rounded-lg p-2 bg-white font-bold text-blue-600 focus:ring-2 focus:ring-blue-500">
           </div>
-
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Discount Info</label>
             <div class="text-xs space-y-1 p-2 bg-white border rounded-lg">
-              <div>Unit Price: <span class="font-semibold">{{ defaultCurrency }} {{ form.actualUnitPrice.toFixed(2) }}</span></div>
+              <div>Unit: <span class="font-semibold">{{ defaultCurrency }} {{ form.actualUnitPrice.toFixed(2) }}</span></div>
               <div>Discount: <span class="font-semibold text-red-600">{{ form.discountRate.toFixed(1) }}% OFF</span></div>
             </div>
           </div>
@@ -124,7 +161,6 @@
               <option v-for="pm in paymentMethods" :key="pm" :value="pm">{{ pm }}</option>
             </select>
           </div>
-
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
             <input type="text" v-model="form.notes" placeholder="Optional notes..." class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
@@ -143,21 +179,21 @@
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 class="text-lg font-bold text-gray-800">Sales Records</h2>
-            <p class="text-xs text-gray-500">Select multiple records to print a combined receipt.</p>
+            <p class="text-xs text-gray-500">Select records to print combined receipt.</p>
           </div>
           <div class="flex gap-2">
-            <button @click="printCombinedReceipt" :disabled="selectedRecordIds.length === 0" :class="selectedRecordIds.length > 0 ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-200 text-gray-400 cursor-not-allowed'" class="px-4 py-2 text-sm rounded-lg shadow transition">
-              Print Combined Receipt ({{ selectedRecordIds.length }})
+            <button @click="printCombinedReceipt" :disabled="selectedRecordIds.length === 0" :class="selectedRecordIds.length > 0 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'" class="px-4 py-2 text-sm rounded-lg shadow transition">
+              Print Receipt ({{ selectedRecordIds.length }})
             </button>
-            <button @click="exportToExcel" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg shadow transition">Export Excel</button>
+            <button @click="exportToExcel" class="px-4 py-2 bg-green-600 text-white text-sm rounded-lg shadow">Export Excel</button>
           </div>
         </div>
-
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm border-collapse">
             <thead>
               <tr class="bg-gray-100 border-b">
                 <th class="p-2"><input type="checkbox" @change="toggleSelectAll" :checked="isAllSelected"></th>
+                <th class="p-2">Photo</th>
                 <th class="p-2">Date & Time</th>
                 <th class="p-2">Location</th>
                 <th class="p-2">Brand / Model</th>
@@ -170,25 +206,98 @@
             <tbody>
               <tr v-for="(item, index) in salesRecords" :key="item.id" class="border-b hover:bg-gray-50">
                 <td class="p-2"><input type="checkbox" :value="item.id" v-model="selectedRecordIds"></td>
-                <td class="p-2 whitespace-nowrap">{{ item.datetime }}</td>
-                <td class="p-2 whitespace-nowrap">{{ item.location }}</td>
+                <!-- 產品照片顯示 -->
                 <td class="p-2">
-                  <div class="font-medium">{{ item.brand }}</div>
-                  <div class="text-xs text-gray-500">{{ item.modelName }}</div>
+                  <img v-if="item.image" :src="item.image" class="w-12 h-12 object-cover rounded border" />
+                  <div v-else class="w-12 h-12 bg-gray-100 border rounded flex items-center justify-center text-xs text-gray-400">No Photo</div>
                 </td>
+                <td class="p-2 text-xs">{{ item.datetime }}</td>
+                <td class="p-2">{{ item.location }}</td>
+                <td class="p-2"><div class="font-medium">{{ item.brand }}</div><div class="text-xs text-gray-500">{{ item.modelName }}</div></td>
                 <td class="p-2">{{ item.quantity }}</td>
-                <td class="p-2 font-semibold whitespace-nowrap">{{ item.currency }} {{ item.total }}</td>
-                <td class="p-2 whitespace-nowrap">{{ item.paymentMethod }}</td>
-                <td class="p-2 whitespace-nowrap space-x-2">
-                  <button @click="editRecord(item)" class="text-blue-600 hover:underline">Edit</button>
-                  <button @click="deleteRecord(index)" class="text-red-600 hover:underline">Delete</button>
+                <td class="p-2 font-semibold">{{ item.currency || defaultCurrency }} {{ item.total }}</td>
+                <td class="p-2">{{ item.paymentMethod }}</td>
+                <td class="p-2 space-x-2">
+                  <button @click="openEditModal(item, index)" class="text-blue-600 font-medium hover:underline">Edit</button>
+                  <button @click="deleteRecord(index)" class="text-red-600 font-medium hover:underline">Del</button>
                 </td>
-              </tr>
-              <tr v-if="salesRecords.length === 0">
-                <td colspan="8" class="text-center p-4 text-gray-400">No sales records available.</td>
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Record Edit Modal (新增修改功能 Modal) -->
+    <div v-if="editingRecord" class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h3 class="text-lg font-bold text-gray-800">Edit Sales Record ({{ editingRecord.id }})</h3>
+          <button @click="editingRecord = null" class="text-gray-400 hover:text-gray-600 font-bold">✕</button>
+        </div>
+
+        <div class="space-y-3 text-sm">
+          <div>
+            <label class="block font-medium text-gray-700">Location</label>
+            <select v-model="editForm.location" class="w-full border rounded p-2">
+              <option v-for="loc in locations" :key="loc" :value="loc">{{ loc }}</option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-medium text-gray-700">Brand</label>
+              <input type="text" v-model="editForm.brand" class="w-full border rounded p-2">
+            </div>
+            <div>
+              <label class="block font-medium text-gray-700">Model Name</label>
+              <input type="text" v-model="editForm.modelName" class="w-full border rounded p-2">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block font-medium text-gray-700">Qty</label>
+              <input type="number" v-model.number="editForm.quantity" @input="updateEditTotal" min="1" class="w-full border rounded p-2">
+            </div>
+            <div>
+              <label class="block font-medium text-gray-700">Unit Price</label>
+              <input type="number" v-model.number="editForm.price" @input="updateEditTotal" class="w-full border rounded p-2">
+            </div>
+            <div>
+              <label class="block font-medium text-gray-700">Total</label>
+              <input type="number" v-model.number="editForm.total" class="w-full border rounded p-2 font-bold text-blue-600">
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-medium text-gray-700">Payment Method</label>
+            <select v-model="editForm.paymentMethod" class="w-full border rounded p-2">
+              <option v-for="pm in paymentMethods" :key="pm" :value="pm">{{ pm }}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block font-medium text-gray-700">Notes</label>
+            <input type="text" v-model="editForm.notes" class="w-full border rounded p-2">
+          </div>
+
+          <div>
+            <label class="block font-medium text-gray-700 mb-1">Product Photo</label>
+            <div class="flex items-center gap-3">
+              <img v-if="editForm.image" :src="editForm.image" class="w-16 h-16 object-cover rounded border" />
+              <label class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-bold cursor-pointer border">
+                Change Photo
+                <input type="file" accept="image/*" capture="environment" @change="captureEditImage" class="hidden">
+              </label>
+              <button v-if="editForm.image" @click="editForm.image = null" class="text-xs text-red-600 hover:underline">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-4 border-t">
+          <button @click="editingRecord = null" class="px-4 py-2 border rounded-lg text-gray-600">Cancel</button>
+          <button @click="saveEditedRecord" class="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Save Changes</button>
         </div>
       </div>
     </div>
@@ -198,82 +307,43 @@
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <div class="flex justify-between items-center border-b pb-2">
           <h2 class="text-lg font-bold text-gray-800">Sales Summary Reports</h2>
-          <button @click="resetReportDates" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-xs font-medium rounded-lg text-gray-600 transition">
-            Reset to Today
-          </button>
+          <button @click="resetReportDates" class="px-3 py-1 bg-gray-100 text-xs font-medium rounded-lg text-gray-600">Reset Today</button>
         </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-            <input type="date" v-model="reportStartDate" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-            <input type="date" v-model="reportEndDate" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <h3 class="text-md font-bold text-gray-700">1. Product Sales Quantity by Brand</h3>
-          <div class="overflow-x-auto border rounded-lg">
-            <table class="w-full text-left text-sm">
-              <tr class="bg-gray-100 border-b">
-                <th class="p-2">Brand</th>
-                <th class="p-2">Model Name</th>
-                <th class="p-2 text-right">Total Quantity Sold</th>
-              </tr>
-              <template v-for="(models, brand) in reportData.brandBreakdown" :key="brand">
-                <tr v-for="(qty, model, idx) in models" :key="model" class="border-b">
-                  <td v-if="idx === 0" :rowspan="Object.keys(models).length" class="p-2 font-bold bg-gray-50 border-r align-top">{{ brand }}</td>
-                  <td class="p-2">{{ model }}</td>
-                  <td class="p-2 text-right font-semibold">{{ qty }}</td>
-                </tr>
-              </template>
-              <tr v-if="Object.keys(reportData.brandBreakdown).length === 0">
-                <td colspan="3" class="text-center p-4 text-gray-400">No product sales in this period.</td>
-              </tr>
-            </table>
-          </div>
+        <div class="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl">
+          <div><label class="block text-sm mb-1">Start Date</label><input type="date" v-model="reportStartDate" class="w-full border rounded-lg p-2"></div>
+          <div><label class="block text-sm mb-1">End Date</label><input type="date" v-model="reportEndDate" class="w-full border rounded-lg p-2"></div>
         </div>
 
         <div class="space-y-3 pt-4">
-          <h3 class="text-md font-bold text-gray-700">2. Sales Amount by Payment Method</h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div v-for="(data, pm) in reportData.paymentBreakdown" :key="pm" class="p-4 bg-gray-50 border rounded-xl space-y-1">
-              <div class="text-sm font-bold text-gray-600">{{ pm }}</div>
-              <div class="text-xl font-extrabold text-blue-600">{{ defaultCurrency }} {{ data.total }}</div>
+          <h3 class="text-md font-bold text-gray-700">Sales Amount by Payment Method</h3>
+          
+          <div class="p-5 bg-blue-50 border border-blue-200 rounded-xl flex justify-between items-center">
+            <div class="text-lg font-bold text-blue-800">Total Sales Amount</div>
+            <div class="text-3xl font-extrabold text-blue-700">{{ defaultCurrency }} {{ reportData.totalSalesAmount }}</div>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div v-for="(data, pm) in reportData.paymentBreakdown" :key="pm" class="p-4 bg-white border rounded-xl shadow-sm">
+              <div class="text-xs font-bold text-gray-500">{{ pm }}</div>
+              <div class="text-lg font-bold text-gray-800">{{ defaultCurrency }} {{ data.total }}</div>
             </div>
           </div>
         </div>
 
         <div class="space-y-3 pt-4">
-          <h3 class="text-md font-bold text-gray-700">3. Daily Sales Breakdown by Payment Method</h3>
-          <div class="overflow-x-auto border rounded-lg">
-            <table class="w-full text-left text-sm border-collapse">
-              <thead>
-                <tr class="bg-gray-100 border-b">
-                  <th class="p-2">Date</th>
-                  <th v-for="pm in paymentMethods" :key="pm" class="p-2 text-right">{{ pm }}</th>
-                  <th class="p-2 text-right font-bold">Daily Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(dayData, date) in reportData.dailyPaymentBreakdown" :key="date" class="border-b">
-                  <td class="p-2 font-medium">{{ date }}</td>
-                  <td v-for="pm in paymentMethods" :key="pm" class="p-2 text-right">
-                    {{ dayData[pm] ? dayData[pm] : '-' }}
-                  </td>
-                  <td class="p-2 text-right font-bold text-blue-600">{{ dayData.dayTotal }}</td>
-                </tr>
-                <tr v-if="Object.keys(reportData.dailyPaymentBreakdown).length === 0">
-                  <td :colspan="paymentMethods.length + 2" class="text-center p-4 text-gray-400">No records in selected date range.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <h3 class="text-md font-bold text-gray-700">Product Sales Quantity</h3>
+          <table class="w-full text-left text-sm border rounded-lg">
+            <tr class="bg-gray-100"><th class="p-2">Brand</th><th class="p-2">Model</th><th class="p-2 text-right">Qty</th></tr>
+            <template v-for="(models, brand) in reportData.brandBreakdown" :key="brand">
+              <tr v-for="(qty, model, idx) in models" :key="model" class="border-b">
+                <td v-if="idx === 0" :rowspan="Object.keys(models).length" class="p-2 font-bold bg-gray-50 border-r align-top">{{ brand }}</td>
+                <td class="p-2">{{ model }}</td>
+                <td class="p-2 text-right font-semibold">{{ qty }}</td>
+              </tr>
+            </template>
+          </table>
         </div>
-
       </div>
     </div>
 
@@ -281,179 +351,129 @@
     <div v-if="activeTab === 'settings'" class="space-y-6 no-print">
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <h2 class="text-lg font-bold text-gray-800 border-b pb-2">System Settings</h2>
-        
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Company Name (Receipt Header)</label>
-            <input type="text" v-model="companyName" @change="saveSettings" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+            <input list="company-presets" v-model="companyName" @change="saveSettings" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+            <datalist id="company-presets">
+              <option value="Bridgestone Watch Limited"></option>
+              <option value="Sutec (HK) Limited"></option>
+              <option value="Le Tandy International Limited"></option>
+            </datalist>
           </div>
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Default Currency</label>
-            <select v-model="defaultCurrency" @change="saveSettings" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
+            <select v-model="defaultCurrency" @change="saveSettings" class="w-full border rounded-lg p-2">
               <option value="HKD">HKD ($)</option>
               <option value="USD">USD ($)</option>
-              <option value="RMB">RMB (¥)</option>
-              <option value="EUR">EUR (€)</option>
             </select>
           </div>
-        </div>
 
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">POS Locations</label>
-          <div class="flex flex-wrap gap-2 mb-2">
-            <span v-for="(loc, idx) in locations" :key="idx" class="bg-gray-100 px-3 py-1 rounded-full text-sm flex items-center gap-2">
-              {{ loc }}
-              <button @click="removeLocation(idx)" class="text-red-500 font-bold hover:text-red-700">×</button>
-            </span>
+          <div class="col-span-1 md:col-span-2 p-4 bg-gray-50 rounded-lg border">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Receipt Company Chop (Stamp)</label>
+            <div class="flex items-center gap-4">
+              <select v-model="selectedChopMode" @change="handleChopModeChange" class="border rounded-lg p-2 bg-white flex-1">
+                <option value="none">No Chop</option>
+                <option value="bridgestone.png">Bridgestone (bridgestone.png)</option>
+                <option value="sutec.png">Sutec (sutec.png)</option>
+                <option value="letandy.png">Le Tandy (letandy.png)</option>
+                <option value="custom">Upload Custom Chop...</option>
+              </select>
+              <input v-show="selectedChopMode === 'custom'" type="file" accept="image/*" @change="uploadCustomChop" class="text-sm">
+            </div>
+            <div v-if="activeCompanyChop" class="mt-3">
+              <p class="text-xs text-gray-500 mb-1">Preview:</p>
+              <img :src="activeCompanyChop" class="h-20 object-contain border bg-white p-1" />
+            </div>
           </div>
-          <div class="flex gap-2">
-            <input type="text" v-model="newLocationInput" placeholder="New Location Name" class="border rounded-lg p-2 text-sm flex-1">
-            <button @click="addLocation" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">+ Add Location</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
-        <h2 class="text-lg font-bold text-gray-800 border-b pb-2">Sales Records Backup & Restore (CSV)</h2>
-        <p class="text-xs text-gray-500">Export sales records to CSV for backup, or import existing records from a CSV file.</p>
-        
-        <div class="flex flex-wrap gap-4 pt-2">
-          <button @click="exportCSVBackup" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow text-sm transition flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-            Export CSV Backup
-          </button>
-
-          <label class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow text-sm cursor-pointer transition flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-            Import CSV Backup
-            <input type="file" accept=".csv" @change="importCSVBackup" class="hidden">
-          </label>
         </div>
       </div>
 
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <div class="flex justify-between items-center border-b pb-2">
           <h2 class="text-lg font-bold text-gray-800">Preset Product Catalog</h2>
-          <select v-model="selectedManageBrand" class="border rounded-lg p-1 text-sm bg-white">
+          <select v-model="selectedManageBrand" class="border rounded-lg p-1 text-sm">
             <option v-for="b in brands" :key="b" :value="b">{{ b }}</option>
           </select>
         </div>
-
-        <div class="space-y-2">
-          <div v-for="(prod, idx) in productsData[selectedManageBrand] || []" :key="idx" class="flex gap-2 items-center">
-            <input type="text" v-model="prod.model" placeholder="Model" class="border rounded p-1 text-sm w-1/3">
-            <input type="text" v-model="prod.modelNo" placeholder="Model No." class="border rounded p-1 text-sm w-1/4">
-            <input type="number" v-model.number="prod.hkd" placeholder="HK$" class="border rounded p-1 text-sm w-1/5">
-            <input type="number" v-model.number="prod.usd" placeholder="US$" class="border rounded p-1 text-sm w-1/5">
-            <button @click="productsData[selectedManageBrand].splice(idx, 1); saveProducts();" class="text-red-500 text-sm">Delete</button>
+        <div class="space-y-3">
+          <div v-for="(prod, idx) in productsData[selectedManageBrand] || []" :key="idx" class="flex flex-wrap gap-2 items-center bg-gray-50 p-2 rounded">
+            <label class="cursor-pointer flex-shrink-0 relative group">
+              <input type="file" accept="image/*" capture="environment" @change="handleProductImage($event, prod)" class="hidden">
+              <div class="w-12 h-12 bg-gray-200 border rounded flex items-center justify-center overflow-hidden">
+                <img v-if="prod.image" :src="prod.image" class="w-full h-full object-cover" />
+                <span v-else class="text-xs text-gray-400">📷</span>
+              </div>
+            </label>
+            <input type="text" v-model="prod.model" placeholder="Model" class="border rounded p-1 text-sm flex-1">
+            <input type="text" v-model="prod.modelNo" placeholder="Code" class="border rounded p-1 text-sm w-24">
+            <input type="number" v-model.number="prod.hkd" placeholder="HK$" class="border rounded p-1 text-sm w-20">
+            <button @click="productsData[selectedManageBrand].splice(idx, 1); saveProducts();" class="text-red-500 text-sm font-bold px-2">X</button>
           </div>
-          <button @click="addNewProductToManage" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm">+ Add Item to {{ selectedManageBrand }}</button>
+          <button @click="addNewProductToManage" class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-bold">+ Add Item</button>
         </div>
       </div>
     </div>
 
-    <!-- Edit Record Modal -->
-    <div v-if="editingRecord" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 no-print">
-      <div class="bg-white p-6 rounded-xl max-w-lg w-full space-y-4 shadow-xl">
-        <h3 class="text-lg font-bold border-b pb-2">Edit Sales Record</h3>
-        
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Location</label>
-            <select v-model="editingRecord.location" class="w-full border rounded p-2 text-sm">
-              <option v-for="loc in locations" :key="loc" :value="loc">{{ loc }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Brand</label>
-            <input type="text" v-model="editingRecord.brand" class="w-full border rounded p-2 text-sm">
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-medium text-gray-600">Model Name</label>
-          <input type="text" v-model="editingRecord.modelName" class="w-full border rounded p-2 text-sm">
-        </div>
-
-        <div class="grid grid-cols-3 gap-3">
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Price Unit</label>
-            <input type="number" v-model.number="editingRecord.price" class="w-full border rounded p-2 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Quantity</label>
-            <input type="number" v-model.number="editingRecord.quantity" class="w-full border rounded p-2 text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Total</label>
-            <input type="number" v-model.number="editingRecord.total" class="w-full border rounded p-2 text-sm font-bold">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Payment Method</label>
-            <select v-model="editingRecord.paymentMethod" class="w-full border rounded p-2 text-sm">
-              <option v-for="pm in paymentMethods" :key="pm" :value="pm">{{ pm }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Notes</label>
-            <input type="text" v-model="editingRecord.notes" class="w-full border rounded p-2 text-sm">
-          </div>
-        </div>
-
-        <div class="flex justify-end gap-2 pt-2 border-t">
-          <button @click="editingRecord = null" class="px-4 py-2 bg-gray-100 rounded-lg text-sm">Cancel</button>
-          <button @click="saveEditedRecord" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold">Save Changes</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Printable Combined Receipt -->
-    <div id="printable-receipt" class="hidden print:block p-8 bg-white text-black max-w-md mx-auto">
-      <div class="text-center border-b pb-4 mb-4">
-        <h1 class="text-xl font-bold uppercase">{{ companyName }}</h1>
-        <p class="text-xs text-gray-600">OFFICIAL SALES RECEIPT</p>
+    <!-- Printable Combined Receipt (A4 Optimized) -->
+    <div id="printable-receipt" class="hidden print:block bg-white text-black">
+      <div class="text-center border-b-2 border-black pb-6 mb-6">
+        <h1 class="text-3xl font-extrabold uppercase tracking-wide">{{ companyName }}</h1>
+        <p class="text-sm text-gray-600 mt-1">OFFICIAL SALES RECEIPT</p>
       </div>
 
-      <div v-if="receiptItems.length > 0" class="space-y-4 text-sm">
-        <div class="flex justify-between text-xs text-gray-600">
+      <div v-if="receiptItems.length > 0" class="space-y-4">
+        <div class="flex justify-between text-base font-medium">
           <span>Receipt No: {{ receiptMeta.id }}</span>
           <span>Date: {{ receiptMeta.datetime }}</span>
         </div>
-        <div class="text-xs text-gray-600">
-          <span>Location: {{ receiptMeta.location }}</span>
-        </div>
+        <div class="text-base">Location: {{ receiptMeta.location }}</div>
 
-        <table class="w-full text-left border-t border-b py-2 my-2 text-xs">
+        <table class="w-full text-left border-t border-b border-black py-4 my-6">
           <thead>
-            <tr class="border-b">
-              <th class="py-1">Item</th>
-              <th class="py-1 text-center">Qty</th>
-              <th class="py-1 text-right">Amount</th>
+            <tr class="border-b border-black">
+              <th class="py-3 text-lg">Item Description</th>
+              <th class="py-3 text-center text-lg">Qty</th>
+              <th class="py-3 text-right text-lg">Amount</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in receiptItems" :key="item.id" class="border-b border-gray-100">
-              <td class="py-2">
-                <div class="font-bold">{{ item.brand }}</div>
-                <div>{{ item.modelName }}</div>
-                <div class="text-[10px] text-gray-500">Pay: {{ item.paymentMethod }}</div>
+            <tr v-for="item in receiptItems" :key="item.id" class="border-b border-gray-200">
+              <td class="py-4">
+                <div class="flex gap-3 items-center">
+                  <!-- Receipt 上顯示產品照 -->
+                  <img v-if="item.image" :src="item.image" class="w-14 h-14 object-cover rounded border" />
+                  <div>
+                    <div class="font-bold text-lg">{{ item.brand }}</div>
+                    <div class="text-base text-gray-800">{{ item.modelName }}</div>
+                    <div class="text-sm text-gray-500 mt-1">Payment: {{ item.paymentMethod }}</div>
+                  </div>
+                </div>
               </td>
-              <td class="py-2 text-center align-top">{{ item.quantity }}</td>
-              <td class="py-2 text-right font-bold align-top">{{ item.currency }} {{ item.total }}</td>
+              <td class="py-4 text-center align-top text-lg">{{ item.quantity }}</td>
+              <td class="py-4 text-right font-bold align-top text-lg">{{ item.currency || defaultCurrency }} {{ item.total }}</td>
             </tr>
           </tbody>
         </table>
 
-        <div class="flex justify-between font-bold text-base border-b pb-2">
-          <span>TOTAL AMOUNT:</span>
-          <span>{{ receiptMeta.currency }} {{ receiptMeta.grandTotal }}</span>
+        <div class="flex justify-end pt-4">
+          <div class="w-1/2">
+            <div class="flex justify-between font-extrabold text-2xl border-b-2 border-black pb-2">
+              <span>TOTAL:</span>
+              <span>{{ receiptMeta.currency }} {{ receiptMeta.grandTotal }}</span>
+            </div>
+          </div>
         </div>
 
-        <div class="text-center border-t pt-6 mt-6 text-xs text-gray-500">
+        <div class="relative h-32 mt-12">
+          <div v-if="activeCompanyChop" class="absolute right-10 bottom-0">
+            <img :src="activeCompanyChop" class="w-32 h-32 object-contain opacity-90" />
+          </div>
+        </div>
+
+        <div class="text-center border-t border-gray-300 pt-6 mt-8 text-sm text-gray-500 font-medium">
           Thank you for your business!
         </div>
       </div>
@@ -464,42 +484,13 @@
   <script>
     const { createApp, ref, computed, onMounted } = Vue;
 
-    const getTodayDateStr = () => {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
-    // Safe Persistent Storage Wrapper
     const storage = {
       async getItem(key) {
-        try {
-          if (window.localforage) {
-            const val = await localforage.getItem(key);
-            if (val !== null && val !== undefined) return val;
-          }
-        } catch (e) {
-          console.warn(`localforage error on get ${key}:`, e);
-        }
         const localVal = localStorage.getItem(key);
         return localVal ? JSON.parse(localVal) : null;
       },
-
       async setItem(key, value) {
-        try {
-          localStorage.setItem(key, JSON.stringify(value));
-        } catch (e) {
-          console.error(`localStorage set error for ${key}:`, e);
-        }
-        if (window.localforage) {
-          try {
-            await localforage.setItem(key, value);
-          } catch (e) {
-            console.warn(`localforage error on set ${key}:`, e);
-          }
-        }
+        localStorage.setItem(key, JSON.stringify(value));
       }
     };
 
@@ -508,123 +499,67 @@
         const activeTab = ref('entry');
         const companyName = ref('Bridgestone Watch Limited');
         const defaultCurrency = ref('HKD');
-        
         const toast = ref({ show: false, message: '', type: 'success' });
+        
         const showToast = (message, type = 'success') => {
           toast.value = { show: true, message, type };
           setTimeout(() => { toast.value.show = false; }, 3000);
         };
 
         const locations = ref(['HK Watch Fair', 'Company', 'Overseas Fair', 'Others']);
-        const newLocationInput = ref('');
         const brands = ref(['Sunrex', 'Le Tandy', 'Fubu', 'Omax', 'Royal Collection', 'Others']);
         const selectedManageBrand = ref('Sunrex');
-
-        const paymentMethods = ref([
-          'Cash', 'Credit Card', 'FPS', 'PayMe', 'UnionPay', 'WeChat Pay / Alipay', 'Others'
-        ]);
+        const paymentMethods = ref(['Credit Card', 'Cash', 'FPS', 'PayMe', 'UnionPay', 'WeChat Pay', 'Alipay', 'Others']);
 
         const defaultProductsData = {
           'Sunrex': [
-            { model: 'Beta', modelNo: 'RX0001', hkd: 4200, usd: 530 },
-            { model: 'Beta Prague', modelNo: 'RX0001P', hkd: 4700, usd: 600 },
-            { model: 'Anemone City', modelNo: 'RX0003', hkd: 4200, usd: 530 },
-            { model: 'Banana Reef', modelNo: 'RX0005', hkd: 4200, usd: 530 },
-            { model: '321', modelNo: 'RX0013', hkd: 4700, usd: 600 },
-            { model: '321 Artneun', modelNo: 'RX0013A', hkd: 5500, usd: 700 },
-            { model: '611', modelNo: 'RX0021', hkd: 4700, usd: 600 },
-            { model: '611 Targa Classica', modelNo: 'RX0021T', hkd: 5500, usd: 700 }
-          ],
-          'Le Tandy': [
-            { model: 'Rieger Begonia', modelNo: 'LE3006PS01', hkd: 7300, usd: 930 },
-            { model: 'Orchid', modelNo: 'LE3006PS06', hkd: 7300, usd: 930 },
-            { model: 'Snowflakes', modelNo: 'LE3006PS13', hkd: 7300, usd: 930 },
-            { model: 'Duo Butterfly Dance', modelNo: 'LE3014PS20', hkd: 7300, usd: 930 },
-            { model: 'Humming Bird', modelNo: 'LE3016PS33', hkd: 8800, usd: 1120 },
-            { model: 'Eagle', modelNo: 'LE3009BA12', hkd: 8800, usd: 1120 },
-            { model: 'Message', modelNo: 'LE3016PS03', hkd: 8800, usd: 1120 },
-            { model: 'Pilot (Lapis)', modelNo: 'LE4021BA8X', hkd: 10800, usd: 1380 },
-            { model: 'Pilot (Picasso Jasper)', modelNo: 'LE4021V002', hkd: 10800, usd: 1380 }
-          ],
-          'Fubu': [
-            { model: 'FB500 Chronograph', modelNo: '', hkd: 499, usd: 0 },
-            { model: 'All In', modelNo: '', hkd: 299, usd: 0 }
-          ],
-          'Royal Collection': [
-            { model: 'Ear Ring', modelNo: '', hkd: 499, usd: 0 },
-            { model: 'Necklace', modelNo: '', hkd: 299, usd: 0 },
-            { model: 'Ring', modelNo: '', hkd: 0, usd: 0 },
-            { model: 'Bracelet', modelNo: '', hkd: 0, usd: 0 },
-            { model: 'Watch', modelNo: '', hkd: 3280, usd: 0 }
+            { model: 'Beta', modelNo: 'RX0001', hkd: 4200, usd: 530, image: null },
+            { model: 'Beta Prague', modelNo: 'RX0001P', hkd: 4700, usd: 600, image: null }
           ]
         };
 
         const productsData = ref(defaultProductsData);
         const salesRecords = ref([]);
         const selectedRecordIds = ref([]);
-        const editingRecord = ref(null);
-
-        const reportStartDate = ref(getTodayDateStr());
-        const reportEndDate = ref(getTodayDateStr());
-
-        const resetReportDates = () => {
-          const today = getTodayDateStr();
-          reportStartDate.value = today;
-          reportEndDate.value = today;
-        };
+        const reportStartDate = ref(new Date().toISOString().slice(0,10));
+        const reportEndDate = ref(new Date().toISOString().slice(0,10));
 
         const form = ref({
-          location: 'HK Watch Fair',
-          brand: 'Sunrex',
-          productIndex: -1,
-          modelName: '',
-          originalPrice: 0,
-          actualUnitPrice: 0,
-          quantity: 1,
-          total: 0,
-          discountRate: 0,
-          paymentMethod: 'Cash',
-          notes: ''
+          location: 'HK Watch Fair', brand: 'Sunrex', productIndex: -1, modelName: '',
+          originalPrice: 0, actualUnitPrice: 0, quantity: 1, total: 0, discountRate: 0,
+          paymentMethod: 'Credit Card', notes: '', image: null
         });
+
+        // 修改記錄 Modal state
+        const editingRecord = ref(null);
+        const editingIndex = ref(-1);
+        const editForm = ref({});
 
         const receiptItems = ref([]);
         const receiptMeta = ref({ id: '', datetime: '', location: '', currency: 'HKD', grandTotal: 0 });
 
+        const selectedChopMode = ref('none');
+        const activeCompanyChop = ref(null);
+
+        const isScanning = ref(false);
+        let html5QrcodeScanner = null;
+
         const currentProducts = computed(() => productsData.value[form.value.brand] || []);
 
-        const setupPWA = () => {
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js')
-              .then((reg) => console.log('Service Worker registered:', reg.scope))
-              .catch((err) => console.error('Service Worker registration failed:', err));
-          }
-        };
-
         onMounted(async () => {
-          setupPWA();
-
-          const storedCompany = await storage.getItem('companyName');
-          if (storedCompany) companyName.value = storedCompany;
-
-          const storedCurr = await storage.getItem('defaultCurrency');
-          if (storedCurr) defaultCurrency.value = storedCurr;
-
-          const storedLocations = await storage.getItem('locations');
-          if (storedLocations) locations.value = storedLocations;
-
-          const storedBrands = await storage.getItem('brands');
-          if (storedBrands) brands.value = storedBrands;
-
-          const storedProducts = await storage.getItem('productsData');
-          if (storedProducts) productsData.value = storedProducts;
-
-          const storedRecords = await storage.getItem('salesRecords');
-          if (Array.isArray(storedRecords) && storedRecords.length > 0) {
-            salesRecords.value = storedRecords;
-          }
-          
-          if (locations.value.length > 0) form.value.location = locations.value[0];
+          const sCompany = await storage.getItem('companyName'); if (sCompany) companyName.value = sCompany;
+          const sProducts = await storage.getItem('productsData'); if (sProducts) productsData.value = sProducts;
+          const sRecords = await storage.getItem('salesRecords'); if (sRecords) salesRecords.value = sRecords;
+          const sChopMode = await storage.getItem('selectedChopMode'); if (sChopMode) selectedChopMode.value = sChopMode;
+          const sChopData = await storage.getItem('activeCompanyChop'); if (sChopData) activeCompanyChop.value = sChopData;
         });
+
+        const syncRecords = async () => {
+          showToast(`Syncing ${form.value.location} data with server...`);
+          setTimeout(() => {
+            showToast('Sync logic triggered', 'success');
+          }, 1500);
+        };
 
         const calculateTotal = () => {
           form.value.total = form.value.originalPrice * form.value.quantity;
@@ -636,322 +571,246 @@
           if (form.value.quantity > 0) {
             form.value.actualUnitPrice = form.value.total / form.value.quantity;
             if (form.value.originalPrice > 0) {
-              const discount = ((form.value.originalPrice - form.value.actualUnitPrice) / form.value.originalPrice) * 100;
-              form.value.discountRate = discount > 0 ? discount : 0;
+              const disc = ((form.value.originalPrice - form.value.actualUnitPrice) / form.value.originalPrice) * 100;
+              form.value.discountRate = disc > 0 ? disc : 0;
             }
           }
         };
 
-        const onBrandChange = () => {
-          form.value.productIndex = -1;
-          form.value.modelName = '';
-          form.value.originalPrice = 0;
-          calculateTotal();
-        };
-
+        const onBrandChange = () => { form.value.productIndex = -1; form.value.modelName = ''; form.value.originalPrice = 0; calculateTotal(); };
         const onProductChange = () => {
           const idx = form.value.productIndex;
           if (idx !== -1 && currentProducts.value[idx]) {
-            const prod = currentProducts.value[idx];
-            form.value.modelName = prod.model + (prod.modelNo ? ` (${prod.modelNo})` : '');
-            form.value.originalPrice = defaultCurrency.value === 'USD' ? (prod.usd || 0) : (prod.hkd || 0);
+            const p = currentProducts.value[idx];
+            form.value.modelName = p.model + (p.modelNo ? ` (${p.modelNo})` : '');
+            form.value.originalPrice = p.hkd || 0;
+            if (p.image) form.value.image = p.image;
             calculateTotal();
           }
         };
 
-        const addLocation = async () => {
-          if (newLocationInput.value && !locations.value.includes(newLocationInput.value)) {
-            locations.value.push(newLocationInput.value);
-            newLocationInput.value = '';
-            await storage.setItem('locations', locations.value);
-          }
+        // 圖片處理共用函式（裁切為 300x300 正方形）
+        const compressAndCropImage = (file, callback) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = 300; canvas.height = 300;
+              const ctx = canvas.getContext('2d');
+              const size = Math.min(img.width, img.height);
+              const sx = (img.width - size) / 2;
+              const sy = (img.height - size) / 2;
+              ctx.drawImage(img, sx, sy, size, size, 0, 0, 300, 300);
+              callback(canvas.toDataURL('image/jpeg', 0.8));
+            };
+            img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
         };
 
-        const removeLocation = async (index) => {
-          locations.value.splice(index, 1);
-          await storage.setItem('locations', locations.value);
-        };
-
-        const addBrand = async () => {
-          const name = prompt('Enter new brand name:');
-          if (name && !brands.value.includes(name)) {
-            brands.value.push(name);
-            productsData.value[name] = [];
-            form.value.brand = name;
-            await storage.setItem('brands', brands.value);
-          }
+        // 銷售輸入頁面拍攝產品照
+        const captureEntryImage = (e) => {
+          const file = e.target.files[0];
+          if(!file) return;
+          compressAndCropImage(file, (base64) => {
+            form.value.image = base64;
+            // 若沒有輸入 Model Name，自動以 Photo Item 命名
+            if (!form.value.modelName) {
+              form.value.modelName = `Photo Item #${Date.now().toString().slice(-4)}`;
+            }
+            showToast('Product photo captured!');
+          });
         };
 
         const submitSale = async () => {
-          if (!form.value.modelName) {
-            showToast('Please enter or select a model name', 'error');
-            return;
+          // 防呆：如果沒有照片也沒有 Model Name
+          if (!form.value.modelName && !form.value.image) {
+            return showToast('Please enter model name or take a photo', 'error');
           }
-
           const now = new Date();
-          const year = now.getFullYear();
-          const month = String(now.getMonth() + 1).padStart(2, '0');
-          const day = String(now.getDate()).padStart(2, '0');
-          const hours = String(now.getHours()).padStart(2, '0');
-          const mins = String(now.getMinutes()).padStart(2, '0');
-
+          const dStr = now.toISOString().slice(0,10);
+          const tStr = now.toTimeString().slice(0,5);
           const newRecord = {
-            id: 'INV' + Date.now().toString().slice(-6),
-            rawDate: `${year}-${month}-${day}`,
-            datetime: `${year}-${month}-${day} ${hours}:${mins}`,
-            location: form.value.location,
-            brand: form.value.brand,
-            modelName: form.value.modelName,
+            id: 'INV' + Date.now().toString().slice(-6), 
+            rawDate: dStr, 
+            datetime: `${dStr} ${tStr}`,
+            ...form.value, 
+            modelName: form.value.modelName || `Photo Item #${Date.now().toString().slice(-4)}`,
+            price: form.value.actualUnitPrice, 
             currency: defaultCurrency.value,
-            originalPrice: form.value.originalPrice,
-            price: form.value.actualUnitPrice,
-            quantity: form.value.quantity,
-            total: form.value.total,
-            discountRate: form.value.discountRate,
-            paymentMethod: form.value.paymentMethod,
-            notes: form.value.notes,
             timestamp: Date.now()
           };
-
           salesRecords.value.unshift(newRecord);
-          await storage.setItem('salesRecords', JSON.parse(JSON.stringify(salesRecords.value)));
+          await storage.setItem('salesRecords', salesRecords.value);
+          showToast('Sales record saved!');
 
-          showToast('Sales record saved successfully!');
-          form.value.notes = '';
+          // 重置表單
+          form.value.productIndex = -1;
+          form.value.modelName = '';
+          form.value.originalPrice = 0;
           form.value.quantity = 1;
-          calculateTotal();
+          form.value.total = 0;
+          form.value.notes = '';
+          form.value.image = null;
         };
 
-        const exportCSVBackup = () => {
-          if (salesRecords.value.length === 0) {
-            showToast('No sales records to export!', 'error');
-            return;
+        // --- Records 編輯功能 ---
+        const openEditModal = (item, index) => {
+          editingIndex.value = index;
+          editingRecord.value = item;
+          editForm.value = { ...item };
+        };
+
+        const updateEditTotal = () => {
+          if (editForm.value.quantity && editForm.value.price) {
+            editForm.value.total = editForm.value.quantity * editForm.value.price;
           }
-
-          const csvHeader = 'ID,RawDate,DateTime,Location,Brand,ModelName,Currency,OriginalPrice,Price,Quantity,Total,DiscountRate,PaymentMethod,Notes,Timestamp\n';
-          const csvRows = salesRecords.value.map(r => [
-            `"${r.id || ''}"`,
-            `"${r.rawDate || ''}"`,
-            `"${r.datetime || ''}"`,
-            `"${(r.location || '').replace(/"/g, '""')}"`,
-            `"${(r.brand || '').replace(/"/g, '""')}"`,
-            `"${(r.modelName || '').replace(/"/g, '""')}"`,
-            `"${r.currency || 'HKD'}"`,
-            r.originalPrice || 0,
-            r.price || 0,
-            r.quantity || 1,
-            r.total || 0,
-            r.discountRate || 0,
-            `"${(r.paymentMethod || '').replace(/"/g, '""')}"`,
-            `"${(r.notes || '').replace(/"/g, '""')}"`,
-            r.timestamp || Date.now()
-          ].join(','));
-
-          const blob = new Blob(['\uFEFF' + csvHeader + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.setAttribute('download', `Sales_Backup_${getTodayDateStr()}.csv`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-
-          showToast('CSV backup exported successfully!');
         };
 
-        const importCSVBackup = (event) => {
-          const file = event.target.files[0];
-          if (!file) return;
-
-          const reader = new FileReader();
-          reader.onload = async (e) => {
-            try {
-              const text = e.target.result;
-              const workbook = XLSX.read(text, { type: 'string' });
-              const sheetName = workbook.SheetNames[0];
-              const json = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-
-              if (json.length === 0) {
-                showToast('CSV file is empty or invalid!', 'error');
-                return;
-              }
-
-              const importedRecords = json.map(row => ({
-                id: row.ID || row['Receipt No'] || ('INV' + Date.now().toString().slice(-6)),
-                rawDate: row.RawDate || (row['Date Time'] ? row['Date Time'].split(' ')[0] : getTodayDateStr()),
-                datetime: row.DateTime || row['Date Time'] || new Date().toISOString().replace('T', ' ').slice(0, 16),
-                location: row.Location || 'HK Watch Fair',
-                brand: row.Brand || 'Others',
-                modelName: row.ModelName || row['Model Name'] || 'Unknown',
-                currency: row.Currency || defaultCurrency.value,
-                originalPrice: Number(row.OriginalPrice || row['Unit Price'] || 0),
-                price: Number(row.Price || row['Unit Price'] || 0),
-                quantity: Number(row.Quantity || 1),
-                total: Number(row.Total || row['Total Amount'] || 0),
-                discountRate: Number(row.DiscountRate || 0),
-                paymentMethod: row.PaymentMethod || row['Payment Method'] || 'Cash',
-                notes: row.Notes || '',
-                timestamp: Number(row.Timestamp || Date.now())
-              }));
-
-              const existingIds = new Set(salesRecords.value.map(r => r.id));
-              let addedCount = 0;
-              importedRecords.forEach(rec => {
-                if (!existingIds.has(rec.id)) {
-                  salesRecords.value.push(rec);
-                  existingIds.add(rec.id);
-                  addedCount++;
-                }
-              });
-
-              salesRecords.value.sort((a, b) => b.timestamp - a.timestamp);
-              await storage.setItem('salesRecords', JSON.parse(JSON.stringify(salesRecords.value)));
-
-              showToast(`CSV imported successfully! Imported ${addedCount} record(s).`);
-            } catch (err) {
-              console.error(err);
-              showToast('Failed to parse CSV file!', 'error');
-            }
-            event.target.value = '';
-          };
-          reader.readAsText(file);
-        };
-
-        const editRecord = (item) => {
-          editingRecord.value = JSON.parse(JSON.stringify(item));
+        const captureEditImage = (e) => {
+          const file = e.target.files[0];
+          if(!file) return;
+          compressAndCropImage(file, (base64) => {
+            editForm.value.image = base64;
+          });
         };
 
         const saveEditedRecord = async () => {
-          const idx = salesRecords.value.findIndex(r => r.id === editingRecord.value.id);
-          if (idx !== -1) {
-            salesRecords.value[idx] = { ...editingRecord.value };
-            await storage.setItem('salesRecords', JSON.parse(JSON.stringify(salesRecords.value)));
+          if (editingIndex.value !== -1) {
+            salesRecords.value[editingIndex.value] = { ...editForm.value };
+            await storage.setItem('salesRecords', salesRecords.value);
             editingRecord.value = null;
-            showToast('Sales record updated!');
+            showToast('Record updated successfully!');
           }
         };
-
-        const deleteRecord = async (index) => {
-          if (confirm('Are you sure you want to delete this record?')) {
-            salesRecords.value.splice(index, 1);
-            await storage.setItem('salesRecords', JSON.parse(JSON.stringify(salesRecords.value)));
-            showToast('Record deleted.');
-          }
-        };
-
-        const toggleSelectAll = (e) => {
-          if (e.target.checked) {
-            selectedRecordIds.value = salesRecords.value.map(r => r.id);
-          } else {
-            selectedRecordIds.value = [];
-          }
-        };
-
-        const isAllSelected = computed(() => {
-          return salesRecords.value.length > 0 && selectedRecordIds.value.length === salesRecords.value.length;
-        });
 
         const printCombinedReceipt = () => {
-          const selectedItems = salesRecords.value.filter(r => selectedRecordIds.value.includes(r.id));
-          if (selectedItems.length === 0) return;
-
-          const newestItem = selectedItems.reduce((prev, current) => (prev.timestamp > current.timestamp) ? prev : current);
-
-          receiptItems.value = selectedItems;
+          const items = salesRecords.value.filter(r => selectedRecordIds.value.includes(r.id));
+          if (!items.length) return;
+          receiptItems.value = items;
           receiptMeta.value = {
             id: 'REC' + Date.now().toString().slice(-6),
-            datetime: newestItem.datetime,
-            location: newestItem.location,
-            currency: newestItem.currency,
-            grandTotal: selectedItems.reduce((sum, item) => sum + item.total, 0)
+            datetime: items[0].datetime, location: items[0].location, currency: items[0].currency || defaultCurrency.value,
+            grandTotal: items.reduce((sum, item) => sum + item.total, 0)
           };
-
-          setTimeout(() => {
-            window.print();
-          }, 100);
-        };
-
-        const saveSettings = async () => {
-          await storage.setItem('companyName', companyName.value);
-          await storage.setItem('defaultCurrency', defaultCurrency.value);
-        };
-
-        const saveProducts = async () => {
-          await storage.setItem('productsData', productsData.value);
-        };
-
-        const addNewProductToManage = () => {
-          if (!productsData.value[selectedManageBrand.value]) {
-            productsData.value[selectedManageBrand.value] = [];
-          }
-          productsData.value[selectedManageBrand.value].push({ model: 'New Model', modelNo: '', hkd: 0, usd: 0 });
-          saveProducts();
+          setTimeout(() => window.print(), 100);
         };
 
         const reportData = computed(() => {
-          const filtered = salesRecords.value.filter(r => {
-            const dateOnly = r.rawDate || r.datetime.split(' ')[0];
-            return dateOnly >= reportStartDate.value && dateOnly <= reportEndDate.value;
-          });
-
+          const filtered = salesRecords.value.filter(r => r.rawDate >= reportStartDate.value && r.rawDate <= reportEndDate.value);
           const brandBreakdown = {};
           const paymentBreakdown = {};
+          let totalSalesAmount = 0;
+          
           paymentMethods.value.forEach(pm => paymentBreakdown[pm] = { total: 0 });
-          const dailyPaymentBreakdown = {};
 
           filtered.forEach(r => {
             if (!brandBreakdown[r.brand]) brandBreakdown[r.brand] = {};
             if (!brandBreakdown[r.brand][r.modelName]) brandBreakdown[r.brand][r.modelName] = 0;
             brandBreakdown[r.brand][r.modelName] += r.quantity;
 
-            if (!paymentBreakdown[r.paymentMethod]) {
-              paymentBreakdown[r.paymentMethod] = { total: 0 };
+            if (paymentBreakdown[r.paymentMethod]) {
+              paymentBreakdown[r.paymentMethod].total += r.total;
             }
-            paymentBreakdown[r.paymentMethod].total += r.total;
-
-            const date = r.rawDate || r.datetime.split(' ')[0];
-            if (!dailyPaymentBreakdown[date]) {
-              dailyPaymentBreakdown[date] = { dayTotal: 0 };
-            }
-            if (!dailyPaymentBreakdown[date][r.paymentMethod]) {
-              dailyPaymentBreakdown[date][r.paymentMethod] = 0;
-            }
-            dailyPaymentBreakdown[date][r.paymentMethod] += r.total;
-            dailyPaymentBreakdown[date].dayTotal += r.total;
+            totalSalesAmount += r.total;
           });
 
-          return { brandBreakdown, paymentBreakdown, dailyPaymentBreakdown };
+          return { brandBreakdown, paymentBreakdown, totalSalesAmount };
         });
 
-        const exportToExcel = () => {
-          const exportData = salesRecords.value.map(r => ({
-            'Receipt No': r.id,
-            'Date Time': r.datetime,
-            'Location': r.location,
-            'Brand': r.brand,
-            'Model Name': r.modelName,
-            'Currency': r.currency,
-            'Unit Price': r.price,
-            'Quantity': r.quantity,
-            'Total Amount': r.total,
-            'Discount %': r.discountRate ? r.discountRate.toFixed(1) + '%' : '0%',
-            'Payment Method': r.paymentMethod,
-            'Notes': r.notes
-          }));
+        const saveSettings = async () => { await storage.setItem('companyName', companyName.value); await storage.setItem('defaultCurrency', defaultCurrency.value); };
+        const saveProducts = async () => { await storage.setItem('productsData', productsData.value); };
+        const addNewProductToManage = () => {
+          if (!productsData.value[selectedManageBrand.value]) productsData.value[selectedManageBrand.value] = [];
+          productsData.value[selectedManageBrand.value].push({ model: 'New Model', modelNo: '', hkd: 0, image: null });
+          saveProducts();
+        };
 
-          const worksheet = XLSX.utils.json_to_sheet(exportData);
-          const workbook = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(workbook, worksheet, "Sales_Report");
-          XLSX.writeFile(workbook, `Sales_Report_${getTodayDateStr()}.xlsx`);
+        const handleChopModeChange = async () => {
+          if (selectedChopMode.value === 'custom') return;
+          if (selectedChopMode.value === 'none') activeCompanyChop.value = null;
+          else activeCompanyChop.value = `./${selectedChopMode.value}`;
+          
+          await storage.setItem('selectedChopMode', selectedChopMode.value);
+          await storage.setItem('activeCompanyChop', activeCompanyChop.value);
+        };
+
+        const uploadCustomChop = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = async (ev) => {
+            activeCompanyChop.value = ev.target.result;
+            await storage.setItem('selectedChopMode', 'custom');
+            await storage.setItem('activeCompanyChop', activeCompanyChop.value);
+          };
+          reader.readAsDataURL(file);
+        };
+
+        const handleProductImage = (e, prod) => {
+          const file = e.target.files[0];
+          if(!file) return;
+          compressAndCropImage(file, (base64) => {
+            prod.image = base64;
+            saveProducts();
+          });
+        };
+
+        const startBarcodeScan = () => {
+          isScanning.value = true;
+          setTimeout(() => {
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            html5QrcodeScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 100 } },
+              (decodedText) => {
+                form.value.modelName = decodedText;
+                stopBarcodeScan();
+                showToast('Barcode scanned successfully!');
+              },
+              (err) => {}
+            ).catch(err => {
+              showToast("Camera access denied or unsupported", "error");
+              isScanning.value = false;
+            });
+          }, 100);
+        };
+
+        const stopBarcodeScan = () => {
+          if (html5QrcodeScanner) {
+            html5QrcodeScanner.stop().then(() => {
+              isScanning.value = false;
+              html5QrcodeScanner.clear();
+            }).catch(() => isScanning.value = false);
+          } else {
+            isScanning.value = false;
+          }
+        };
+
+        const exportToExcel = () => {
+          if (!salesRecords.value.length) return showToast('No records to export', 'error');
+          const data = salesRecords.value.map(r => ({
+            ID: r.id, Date: r.datetime, Location: r.location, Brand: r.brand,
+            Model: r.modelName, Qty: r.quantity, Price: r.price, Total: r.total,
+            Payment: r.paymentMethod, Notes: r.notes || ''
+          }));
+          const ws = XLSX.utils.json_to_sheet(data);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "SalesRecords");
+          XLSX.writeFile(wb, `Sales_Records_${new Date().toISOString().slice(0,10)}.xlsx`);
         };
 
         return {
-          activeTab, companyName, defaultCurrency, locations, newLocationInput, brands,
-          selectedManageBrand, paymentMethods, productsData, currentProducts, salesRecords,
-          selectedRecordIds, editingRecord, form, receiptItems, receiptMeta, reportStartDate, reportEndDate,
-          resetReportDates, reportData, isAllSelected, toast, calculateTotal, onTotalChange, onBrandChange, onProductChange,
-          addLocation, removeLocation, addBrand, submitSale, editRecord, saveEditedRecord,
-          deleteRecord, toggleSelectAll, printCombinedReceipt, saveSettings, saveProducts,
-          addNewProductToManage, exportToExcel, exportCSVBackup, importCSVBackup
+          activeTab, companyName, defaultCurrency, locations, brands, selectedManageBrand, paymentMethods,
+          productsData, currentProducts, salesRecords, selectedRecordIds, form, receiptItems, receiptMeta,
+          reportStartDate, reportEndDate, reportData, toast, isScanning, selectedChopMode, activeCompanyChop,
+          editingRecord, editForm,
+          syncRecords, calculateTotal, onTotalChange, onBrandChange, onProductChange, submitSale, printCombinedReceipt,
+          saveSettings, saveProducts, addNewProductToManage, handleProductImage, startBarcodeScan, stopBarcodeScan,
+          handleChopModeChange, uploadCustomChop, captureEntryImage, openEditModal, updateEditTotal, captureEditImage, saveEditedRecord, exportToExcel,
+          deleteRecord: async (idx) => { salesRecords.value.splice(idx, 1); await storage.setItem('salesRecords', salesRecords.value); },
+          toggleSelectAll: (e) => { selectedRecordIds.value = e.target.checked ? salesRecords.value.map(r=>r.id) : []; },
+          isAllSelected: computed(() => salesRecords.value.length > 0 && selectedRecordIds.value.length === salesRecords.value.length),
+          resetReportDates: () => { const d = new Date().toISOString().slice(0,10); reportStartDate.value = d; reportEndDate.value = d; }
         };
       }
     }).mount('#app');
