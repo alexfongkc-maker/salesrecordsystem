@@ -413,9 +413,9 @@
             <div class="flex items-center gap-4">
               <select v-model="selectedChopMode" @change="handleChopModeChange" class="border rounded-lg p-2 bg-white flex-1">
                 <option value="none">No Chop</option>
-                <option value="bridgestone.png">Bridgestone</option>
-                <option value="sutec.png">Sutec</option>
-                <option value="letandy.png">Le Tandy</option>
+                <option value="${GITHUB_IMAGE_BASE}/bridgestone.png">Bridgestone</option>
+                <option value="${GITHUB_IMAGE_BASE}/sutec.png">Sutec</option>
+                <option value="${GITHUB_IMAGE_BASE}/letandy.png">Le Tandy</option>
                 <option value="custom">Upload Custom Chop...</option>
               </select>
               <input v-show="selectedChopMode === 'custom'" type="file" accept="image/*" @change="uploadCustomChop" class="text-sm">
@@ -425,6 +425,22 @@
               <img :src="activeCompanyChop" class="h-20 object-contain border bg-white p-1" />
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- CSV Data Backup & Restore -->
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
+        <h2 class="text-lg font-bold text-gray-800 border-b pb-2">Data Backup & Transfer (CSV)</h2>
+        <p class="text-xs text-gray-500">Export your sales records to a CSV file or import records from a CSV file.</p>
+        <div class="flex flex-wrap gap-4 items-center">
+          <button @click="exportSalesCSV" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow text-sm flex items-center gap-2">
+            📄 Export Sales CSV
+          </button>
+          
+          <label class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow text-sm cursor-pointer flex items-center gap-2">
+            📥 Import Sales CSV
+            <input type="file" accept=".csv" @change="importSalesCSV" class="hidden">
+          </label>
         </div>
       </div>
 
@@ -896,6 +912,111 @@
           XLSX.writeFile(wb, `Sales_Records_${new Date().toISOString().slice(0,10)}.xlsx`);
         };
 
+        // --- CSV 匯出與匯入功能 ---
+        const exportSalesCSV = () => {
+          if (!salesRecords.value.length) return showToast('No records to export', 'error');
+          
+          const headers = ['id', 'rawDate', 'datetime', 'location', 'brand', 'modelName', 'originalPrice', 'price', 'quantity', 'total', 'discountRate', 'paymentMethod', 'currency', 'notes', 'image', 'timestamp'];
+          
+          const escapeCSVField = (field) => {
+            if (field === null || field === undefined) return '""';
+            const str = String(field).replace(/"/g, '""');
+            return `"${str}"`;
+          };
+
+          let csvContent = '\uFEFF'; // BOM 特殊字元防止中文亂碼
+          csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+
+          salesRecords.value.forEach(record => {
+            const row = headers.map(h => escapeCSVField(record[h]));
+            csvContent += row.join(',') + '\n';
+          });
+
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.setAttribute('href', url);
+          link.setAttribute('download', `sales_records_${new Date().toISOString().slice(0,10)}.csv`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          showToast('Sales records exported to CSV!');
+        };
+
+        const parseCSVLine = (line) => {
+          const result = [];
+          let currentStr = '';
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            if (char === '"') {
+              if (inQuotes && line[i + 1] === '"') {
+                currentStr += '"';
+                i++;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              result.push(currentStr);
+              currentStr = '';
+            } else {
+              currentStr += char;
+            }
+          }
+          result.push(currentStr);
+          return result;
+        };
+
+        const importSalesCSV = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = async (ev) => {
+            try {
+              let text = ev.target.result;
+              if (text.startsWith('\uFEFF')) {
+                text = text.slice(1);
+              }
+              const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
+              if (lines.length < 2) return showToast('Invalid or empty CSV file', 'error');
+
+              const headers = parseCSVLine(lines[0]).map(h => h.trim());
+              const importedRecords = [];
+
+              for (let i = 1; i < lines.length; i++) {
+                const values = parseCSVLine(lines[i]);
+                if (values.length < headers.length) continue;
+
+                const record = {};
+                headers.forEach((h, idx) => {
+                  let val = values[idx];
+                  if (['originalPrice', 'price', 'quantity', 'total', 'discountRate', 'timestamp'].includes(h)) {
+                    val = Number(val) || 0;
+                  }
+                  record[h] = val;
+                });
+
+                if (!record.id) record.id = 'INV' + Date.now().toString().slice(-6) + i;
+                importedRecords.push(record);
+              }
+
+              if (importedRecords.length > 0) {
+                salesRecords.value = importedRecords;
+                await storage.setItem('salesRecords', salesRecords.value);
+                showToast(`Successfully imported ${importedRecords.length} sales records!`);
+              } else {
+                showToast('No valid records found in CSV', 'error');
+              }
+            } catch (err) {
+              console.error(err);
+              showToast('Failed to parse CSV file', 'error');
+            }
+            e.target.value = '';
+          };
+          reader.readAsText(file);
+        };
+
         return {
           activeTab, companyName, defaultCurrency, locations, brands, selectedManageBrand, paymentMethods,
           productsData, currentProducts, salesRecords, selectedRecordIds, form, receiptItems, receiptMeta,
@@ -904,6 +1025,7 @@
           syncRecords, calculateTotal, onTotalChange, onBrandChange, onProductChange, submitSale, printCombinedReceipt,
           saveSettings, saveProducts, addNewProductToManage, handleProductImage, startBarcodeScan, stopBarcodeScan,
           handleChopModeChange, uploadCustomChop, captureEntryImage, openEditModal, updateEditTotal, captureEditImage, saveEditedRecord, exportToExcel,
+          exportSalesCSV, importSalesCSV,
           deleteRecord: async (idx) => { salesRecords.value.splice(idx, 1); await storage.setItem('salesRecords', salesRecords.value); },
           toggleSelectAll: (e) => { selectedRecordIds.value = e.target.checked ? salesRecords.value.map(r=>r.id) : []; },
           isAllSelected: computed(() => salesRecords.value.length > 0 && selectedRecordIds.value.length === salesRecords.value.length),
