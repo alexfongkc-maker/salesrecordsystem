@@ -103,19 +103,19 @@
             <div class="flex gap-1.5 items-center flex-wrap sm:flex-nowrap">
               <input type="text" v-model="form.modelName" placeholder="Model name or photo" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 min-w-[120px]">
               
-              <!-- 1. 上傳相簿圖片 -->
+              <!-- 上傳相簿圖片 -->
               <label class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer flex-shrink-0 border" title="Upload from Gallery">
                 📁 Upload
                 <input type="file" accept="image/*" @change="captureEntryImage" class="hidden">
               </label>
 
-              <!-- 2. 即時拍攝照片 -->
+              <!-- 即時拍攝照片 -->
               <label class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer flex-shrink-0" title="Take a Photo">
                 📷 Snap
                 <input type="file" accept="image/*" capture="environment" @change="captureEntryImage" class="hidden">
               </label>
 
-              <!-- 3. 掃描條碼 -->
+              <!-- 掃描條碼 -->
               <button @click="startBarcodeScan" class="bg-gray-800 hover:bg-gray-900 text-white px-2.5 py-2 rounded-lg text-xs font-bold flex-shrink-0">
                 [|||] Scan
               </button>
@@ -213,7 +213,6 @@
             <tbody>
               <tr v-for="(item, index) in salesRecords" :key="item.id" class="border-b hover:bg-gray-50">
                 <td class="p-2"><input type="checkbox" :value="item.id" v-model="selectedRecordIds"></td>
-                <!-- 產品照片顯示 -->
                 <td class="p-2">
                   <img v-if="item.image" :src="item.image" class="w-12 h-12 object-cover rounded border" />
                   <div v-else class="w-12 h-12 bg-gray-100 border rounded flex items-center justify-center text-xs text-gray-400">No Photo</div>
@@ -294,13 +293,11 @@
             <div class="flex items-center gap-2 flex-wrap">
               <img v-if="editForm.image" :src="editForm.image" class="w-16 h-16 object-cover rounded border" />
               
-              <!-- 編輯時：上傳相簿圖片 -->
               <label class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-bold cursor-pointer border">
                 📁 Upload
                 <input type="file" accept="image/*" @change="captureEditImage" class="hidden">
               </label>
 
-              <!-- 編輯時：相機拍照 -->
               <label class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold cursor-pointer">
                 📷 Snap
                 <input type="file" accept="image/*" capture="environment" @change="captureEditImage" class="hidden">
@@ -320,19 +317,20 @@
 
     <!-- Tab 3: Reports -->
     <div v-if="activeTab === 'reports'" class="space-y-6 no-print">
-      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
         <div class="flex justify-between items-center border-b pb-2">
           <h2 class="text-lg font-bold text-gray-800">Sales Summary Reports</h2>
-          <button @click="resetReportDates" class="px-3 py-1 bg-gray-100 text-xs font-medium rounded-lg text-gray-600">Reset Today</button>
+          <button @click="resetReportDates" class="px-3 py-1 bg-gray-100 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-200">Reset Today</button>
         </div>
         
         <div class="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl">
-          <div><label class="block text-sm mb-1">Start Date</label><input type="date" v-model="reportStartDate" class="w-full border rounded-lg p-2"></div>
-          <div><label class="block text-sm mb-1">End Date</label><input type="date" v-model="reportEndDate" class="w-full border rounded-lg p-2"></div>
+          <div><label class="block text-sm mb-1 font-medium text-gray-700">Start Date</label><input type="date" v-model="reportStartDate" class="w-full border rounded-lg p-2 bg-white"></div>
+          <div><label class="block text-sm mb-1 font-medium text-gray-700">End Date</label><input type="date" v-model="reportEndDate" class="w-full border rounded-lg p-2 bg-white"></div>
         </div>
 
-        <div class="space-y-3 pt-4">
-          <h3 class="text-md font-bold text-gray-700">Sales Amount by Payment Method</h3>
+        <!-- 總銷售金額與各付款方式加總 -->
+        <div class="space-y-3">
+          <h3 class="text-md font-bold text-gray-700">Sales Amount Overview</h3>
           
           <div class="p-5 bg-blue-50 border border-blue-200 rounded-xl flex justify-between items-center">
             <div class="text-lg font-bold text-blue-800">Total Sales Amount</div>
@@ -347,7 +345,38 @@
           </div>
         </div>
 
-        <div class="space-y-3 pt-4">
+        <!-- 【新增/加回】Daily Sales Breakdown by Payment Method -->
+        <div class="space-y-3 pt-4 border-t">
+          <h3 class="text-md font-bold text-gray-700">Daily Sales Breakdown by Payment Method</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm border rounded-lg overflow-hidden">
+              <thead>
+                <tr class="bg-gray-100 border-b text-gray-700">
+                  <th class="p-2 border-r font-bold">Date</th>
+                  <th v-for="pm in dailyPaymentBreakdown.methods" :key="pm" class="p-2 border-r text-right font-semibold">{{ pm }}</th>
+                  <th class="p-2 text-right font-bold bg-blue-50 text-blue-900">Daily Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="dailyPaymentBreakdown.dates.length === 0">
+                  <td :colspan="dailyPaymentBreakdown.methods.length + 2" class="p-4 text-center text-gray-400">No records found within date range.</td>
+                </tr>
+                <tr v-for="dStr in dailyPaymentBreakdown.dates" :key="dStr" class="border-b hover:bg-gray-50">
+                  <td class="p-2 font-medium border-r bg-gray-50">{{ dStr }}</td>
+                  <td v-for="pm in dailyPaymentBreakdown.methods" :key="pm" class="p-2 border-r text-right font-mono">
+                    {{ dailyPaymentBreakdown.matrix[dStr][pm] ? defaultCurrency + ' ' + dailyPaymentBreakdown.matrix[dStr][pm] : '-' }}
+                  </td>
+                  <td class="p-2 text-right font-bold text-blue-600 bg-blue-50/50 font-mono">
+                    {{ defaultCurrency }} {{ dailyPaymentBreakdown.dailyTotals[dStr] }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Product Sales Quantity -->
+        <div class="space-y-3 pt-4 border-t">
           <h3 class="text-md font-bold text-gray-700">Product Sales Quantity</h3>
           <table class="w-full text-left text-sm border rounded-lg">
             <tr class="bg-gray-100"><th class="p-2">Brand</th><th class="p-2">Model</th><th class="p-2 text-right">Qty</th></tr>
@@ -416,7 +445,6 @@
         </div>
         <div class="space-y-3">
           <div v-for="(prod, idx) in productsData[selectedManageBrand] || []" :key="idx" class="flex flex-wrap gap-2 items-center bg-gray-50 p-2 rounded">
-            <!-- 產品目錄圖片管理：點擊可上傳相簿圖片或拍攝照片 -->
             <label class="cursor-pointer flex-shrink-0 relative group" title="Upload image or take photo">
               <input type="file" accept="image/*" @change="handleProductImage($event, prod)" class="hidden">
               <div class="w-12 h-12 bg-gray-200 border rounded flex items-center justify-center overflow-hidden">
@@ -460,7 +488,6 @@
             <tr v-for="item in receiptItems" :key="item.id" class="border-b border-gray-200">
               <td class="py-4">
                 <div class="flex gap-3 items-center">
-                  <!-- Receipt 上顯示產品照 -->
                   <img v-if="item.image" :src="item.image" class="w-14 h-14 object-cover rounded border" />
                   <div>
                     <div class="font-bold text-lg">{{ item.brand }}</div>
@@ -501,7 +528,6 @@
   <script>
     const { createApp, ref, computed, onMounted } = Vue;
 
-    // CDN 基礎網址，用於託管 GitHub 專案靜態圖檔
     const GITHUB_CDN_BASE = 'https://cdn.jsdelivr.net/gh/alexfongkc/salesrecordsystem@main';
 
     const storage = {
@@ -531,7 +557,6 @@
         const selectedManageBrand = ref('Sunrex');
         const paymentMethods = ref(['Credit Card', 'Cash', 'FPS', 'PayMe', 'UnionPay', 'WeChat Pay', 'Alipay', 'Others']);
 
-        // 使用 GitHub CDN 設定預設產品圖片路徑
         const defaultProductsData = {
           'Sunrex': [
             { model: 'Beta', modelNo: 'RX0001', hkd: 4200, usd: 530, image: `${GITHUB_CDN_BASE}/rx0001.png` },
@@ -579,7 +604,6 @@
           paymentMethod: 'Credit Card', notes: '', image: null
         });
 
-        // 修改記錄 Modal state
         const editingRecord = ref(null);
         const editingIndex = ref(-1);
         const editForm = ref({});
@@ -638,7 +662,6 @@
           }
         };
 
-        // 圖片處理共用函式（裁切為 300x300 正方形）
         const compressAndCropImage = (file, callback) => {
           const reader = new FileReader();
           reader.onload = (event) => {
@@ -658,7 +681,6 @@
           reader.readAsDataURL(file);
         };
 
-        // 銷售輸入頁面（支援相機拍攝與相簿上傳）
         const captureEntryImage = (e) => {
           const file = e.target.files[0];
           if(!file) return;
@@ -692,7 +714,6 @@
           await storage.setItem('salesRecords', salesRecords.value);
           showToast('Sales record saved!');
 
-          // 重置表單
           form.value.productIndex = -1;
           form.value.modelName = '';
           form.value.originalPrice = 0;
@@ -702,7 +723,6 @@
           form.value.image = null;
         };
 
-        // --- Records 編輯功能 ---
         const openEditModal = (item, index) => {
           editingIndex.value = index;
           editingRecord.value = item;
@@ -766,6 +786,39 @@
           return { brandBreakdown, paymentBreakdown, totalSalesAmount };
         });
 
+        // 【新增計算邏輯】計算每日付款方式銷售明細 (Daily Breakdown)
+        const dailyPaymentBreakdown = computed(() => {
+          const filtered = salesRecords.value.filter(r => r.rawDate >= reportStartDate.value && r.rawDate <= reportEndDate.value);
+          
+          const dateSet = new Set();
+          const matrix = {};
+          const dailyTotals = {};
+
+          filtered.forEach(r => {
+            const date = r.rawDate;
+            const pm = r.paymentMethod || 'Others';
+            
+            dateSet.add(date);
+
+            if (!matrix[date]) matrix[date] = {};
+            if (!matrix[date][pm]) matrix[date][pm] = 0;
+            matrix[date][pm] += r.total;
+
+            if (!dailyTotals[date]) dailyTotals[date] = 0;
+            dailyTotals[date] += r.total;
+          });
+
+          // 日期由新至舊排序
+          const sortedDates = Array.from(dateSet).sort((a, b) => b.localeCompare(a));
+
+          return {
+            dates: sortedDates,
+            methods: paymentMethods.value,
+            matrix,
+            dailyTotals
+          };
+        });
+
         const saveSettings = async () => { await storage.setItem('companyName', companyName.value); await storage.setItem('defaultCurrency', defaultCurrency.value); };
         const saveProducts = async () => { await storage.setItem('productsData', productsData.value); };
         const addNewProductToManage = () => {
@@ -774,7 +827,6 @@
           saveProducts();
         };
 
-        // 印章（Chop）路徑更新為 GitHub CDN 網址
         const handleChopModeChange = async () => {
           if (selectedChopMode.value === 'custom') return;
           if (selectedChopMode.value === 'none') activeCompanyChop.value = null;
@@ -850,7 +902,7 @@
         return {
           activeTab, companyName, defaultCurrency, locations, brands, selectedManageBrand, paymentMethods,
           productsData, currentProducts, salesRecords, selectedRecordIds, form, receiptItems, receiptMeta,
-          reportStartDate, reportEndDate, reportData, toast, isScanning, selectedChopMode, activeCompanyChop,
+          reportStartDate, reportEndDate, reportData, dailyPaymentBreakdown, toast, isScanning, selectedChopMode, activeCompanyChop,
           editingRecord, editForm,
           syncRecords, calculateTotal, onTotalChange, onBrandChange, onProductChange, submitSale, printCombinedReceipt,
           saveSettings, saveProducts, addNewProductToManage, handleProductImage, startBarcodeScan, stopBarcodeScan,
