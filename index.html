@@ -708,9 +708,15 @@
           if (!form.value.modelName && !form.value.image) {
             return showToast('Please enter model name or attach a photo', 'error');
           }
-          const now = new Date();
-          const dStr = now.toISOString().slice(0,10);
-          const tStr = now.toTimeString().slice(0,5);
+const now = new Date();
+// 取得本地 YYYY-MM-DD 日期
+const year = now.getFullYear();
+const month = String(now.getMonth() + 1).padStart(2, '0');
+const day = String(now.getDate()).padStart(2, '0');
+const dStr = `${year}-${month}-${day}`;
+
+const tStr = now.toTimeString().slice(0,5);
+
           const newRecord = {
             id: 'INV' + Date.now().toString().slice(-6), 
             rawDate: dStr, 
