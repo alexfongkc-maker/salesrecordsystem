@@ -79,7 +79,6 @@
               <select v-model="form.brand" @change="onBrandChange" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
                 <option v-for="b in brands" :key="b" :value="b">{{ b }}</option>
               </select>
-              <button @click="addBrand" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm whitespace-nowrap">+ Add</button>
             </div>
           </div>
         </div>
@@ -144,7 +143,7 @@
             <input type="number" v-model.number="form.quantity" @input="calculateTotal" min="1" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Total Amount ({{ defaultCurrency }})</label>
             <input type="number" v-model.number="form.total" @input="onTotalChange" min="0" class="w-full border rounded-lg p-2 bg-white font-bold text-blue-600 focus:ring-2 focus:ring-blue-500">
           </div>
           <div>
@@ -256,7 +255,14 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-3 gap-2">
+          <div class="grid grid-cols-4 gap-2">
+            <div>
+              <label class="block font-medium text-gray-700">Currency</label>
+              <select v-model="editForm.currency" class="w-full border rounded p-2">
+                <option value="HKD">HKD</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
             <div>
               <label class="block font-medium text-gray-700">Qty</label>
               <input type="number" v-model.number="editForm.quantity" @input="updateEditTotal" min="1" class="w-full border rounded p-2">
@@ -314,7 +320,10 @@
     <div v-if="activeTab === 'reports'" class="space-y-6 no-print">
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-6">
         <div class="flex justify-between items-center border-b pb-2">
-          <h2 class="text-lg font-bold text-gray-800">Sales Summary Reports</h2>
+          <div>
+            <h2 class="text-lg font-bold text-gray-800">Sales Summary Reports</h2>
+            <p class="text-xs text-gray-500">Converted & Converted into {{ defaultCurrency }} (Rate: 1 USD = {{ exchangeRate }} HKD)</p>
+          </div>
           <button @click="resetReportDates" class="px-3 py-1 bg-gray-100 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-200">Reset Today</button>
         </div>
         
@@ -328,19 +337,19 @@
           
           <div class="p-5 bg-blue-50 border border-blue-200 rounded-xl flex justify-between items-center">
             <div class="text-lg font-bold text-blue-800">Total Sales Amount</div>
-            <div class="text-3xl font-extrabold text-blue-700">{{ defaultCurrency }} {{ reportData.totalSalesAmount }}</div>
+            <div class="text-3xl font-extrabold text-blue-700">{{ defaultCurrency }} {{ reportData.totalSalesAmount.toFixed(2) }}</div>
           </div>
 
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div v-for="(data, pm) in reportData.paymentBreakdown" :key="pm" class="p-4 bg-white border rounded-xl shadow-sm">
               <div class="text-xs font-bold text-gray-500">{{ pm }}</div>
-              <div class="text-lg font-bold text-gray-800">{{ defaultCurrency }} {{ data.total }}</div>
+              <div class="text-lg font-bold text-gray-800">{{ defaultCurrency }} {{ data.total.toFixed(2) }}</div>
             </div>
           </div>
         </div>
 
         <div class="space-y-3 pt-4 border-t">
-          <h3 class="text-md font-bold text-gray-700">Daily Sales Breakdown by Payment Method</h3>
+          <h3 class="text-md font-bold text-gray-700">Daily Sales Breakdown by Payment Method ({{ defaultCurrency }})</h3>
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm border rounded-lg overflow-hidden">
               <thead>
@@ -357,10 +366,10 @@
                 <tr v-for="dStr in dailyPaymentBreakdown.dates" :key="dStr" class="border-b hover:bg-gray-50">
                   <td class="p-2 font-medium border-r bg-gray-50">{{ dStr }}</td>
                   <td v-for="pm in dailyPaymentBreakdown.methods" :key="pm" class="p-2 border-r text-right font-mono">
-                    {{ dailyPaymentBreakdown.matrix[dStr][pm] ? defaultCurrency + ' ' + dailyPaymentBreakdown.matrix[dStr][pm] : '-' }}
+                    {{ dailyPaymentBreakdown.matrix[dStr][pm] ? defaultCurrency + ' ' + dailyPaymentBreakdown.matrix[dStr][pm].toFixed(2) : '-' }}
                   </td>
                   <td class="p-2 text-right font-bold text-blue-600 bg-blue-50/50 font-mono">
-                    {{ defaultCurrency }} {{ dailyPaymentBreakdown.dailyTotals[dStr] }}
+                    {{ defaultCurrency }} {{ dailyPaymentBreakdown.dailyTotals[dStr].toFixed(2) }}
                   </td>
                 </tr>
               </tbody>
@@ -388,7 +397,7 @@
     <div v-if="activeTab === 'settings'" class="space-y-6 no-print">
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <h2 class="text-lg font-bold text-gray-800 border-b pb-2">System Settings</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
@@ -402,20 +411,26 @@
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Default Currency</label>
-            <select v-model="defaultCurrency" @change="saveSettings" class="w-full border rounded-lg p-2">
+            <select v-model="defaultCurrency" @change="saveSettings" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
               <option value="HKD">HKD ($)</option>
               <option value="USD">USD ($)</option>
             </select>
           </div>
 
-          <div class="col-span-1 md:col-span-2 p-4 bg-gray-50 rounded-lg border">
+          <!-- 2) Setting增加USD<>HK兌換率欄，預設為7.85及可修改 -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">USD to HKD Exchange Rate</label>
+            <input type="number" step="0.01" v-model.number="exchangeRate" @change="saveSettings" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500" placeholder="7.85">
+          </div>
+
+          <div class="col-span-1 md:col-span-3 p-4 bg-gray-50 rounded-lg border">
             <label class="block text-sm font-medium text-gray-700 mb-2">Receipt Company Chop (Stamp)</label>
             <div class="flex items-center gap-4">
               <select v-model="selectedChopMode" @change="handleChopModeChange" class="border rounded-lg p-2 bg-white flex-1">
                 <option value="none">No Chop</option>
-                <option value="${GITHUB_IMAGE_BASE}/bridgestone.png">Bridgestone</option>
-                <option value="${GITHUB_IMAGE_BASE}/sutec.png">Sutec</option>
-                <option value="${GITHUB_IMAGE_BASE}/letandy.png">Le Tandy</option>
+                <option value="bridgestone.png">Bridgestone</option>
+                <option value="sutec.png">Sutec</option>
+                <option value="letandy.png">Le Tandy</option>
                 <option value="custom">Upload Custom Chop...</option>
               </select>
               <input v-show="selectedChopMode === 'custom'" type="file" accept="image/*" @change="uploadCustomChop" class="text-sm">
@@ -444,6 +459,7 @@
         </div>
       </div>
 
+      <!-- 1) Preset Product Catalog顯示回預設USD -->
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <div class="flex justify-between items-center border-b pb-2">
           <h2 class="text-lg font-bold text-gray-800">Preset Product Catalog</h2>
@@ -460,9 +476,16 @@
                 <span v-else class="text-xs text-gray-400">📷/📁</span>
               </div>
             </label>
-            <input type="text" v-model="prod.model" placeholder="Model" class="border rounded p-1 text-sm flex-1">
+            <input type="text" v-model="prod.model" placeholder="Model" class="border rounded p-1 text-sm flex-1 min-w-[120px]">
             <input type="text" v-model="prod.modelNo" placeholder="Code" class="border rounded p-1 text-sm w-24">
-            <input type="number" v-model.number="prod.hkd" placeholder="HK$" class="border rounded p-1 text-sm w-20">
+            <div class="flex items-center gap-1">
+              <span class="text-xs text-gray-500">HKD:</span>
+              <input type="number" v-model.number="prod.hkd" placeholder="HK$" class="border rounded p-1 text-sm w-20">
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="text-xs text-gray-500">USD:</span>
+              <input type="number" v-model.number="prod.usd" placeholder="US$" class="border rounded p-1 text-sm w-20">
+            </div>
             <button @click="productsData[selectedManageBrand].splice(idx, 1); saveProducts();" class="text-red-500 text-sm font-bold px-2">X</button>
           </div>
           <button @click="addNewProductToManage" class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm font-bold">+ Add Item</button>
@@ -505,16 +528,17 @@
                 </div>
               </td>
               <td class="py-4 text-center align-top text-lg">{{ item.quantity }}</td>
-              <td class="py-4 text-right font-bold align-top text-lg">{{ item.currency || defaultCurrency }} {{ item.total }}</td>
+              <td class="py-4 text-right font-bold align-top text-lg">{{ item.currency || 'HKD' }} {{ item.total }}</td>
             </tr>
           </tbody>
         </table>
 
+        <!-- 4) Records頁print receipt時不同貨幣要分開加總 -->
         <div class="flex justify-end pt-4">
-          <div class="w-1/2">
-            <div class="flex justify-between font-extrabold text-2xl border-b-2 border-black pb-2">
-              <span>TOTAL:</span>
-              <span>{{ receiptMeta.currency }} {{ receiptMeta.grandTotal }}</span>
+          <div class="w-1/2 space-y-2">
+            <div v-for="(subtotal, curr) in receiptMeta.totalsByCurrency" :key="curr" class="flex justify-between font-bold text-xl border-b border-gray-300 pb-1">
+              <span>TOTAL ({{ curr }}):</span>
+              <span>{{ curr }} {{ subtotal.toFixed(2) }}</span>
             </div>
           </div>
         </div>
@@ -536,7 +560,6 @@
   <script>
     const { createApp, ref, computed, onMounted } = Vue;
 
-    // 來自 gemini-code.js 的 CDN 網址設定
     const GITHUB_CDN_BASE = 'https://cdn.jsdelivr.net/gh/alexfongkc/salesrecordsystem@main';
     const GITHUB_IMAGE_BASE = GITHUB_CDN_BASE;
 
@@ -555,6 +578,7 @@
         const activeTab = ref('entry');
         const companyName = ref('Bridgestone Watch Limited');
         const defaultCurrency = ref('HKD');
+        const exchangeRate = ref(7.85); // 2) 預設 7.85
         const toast = ref({ show: false, message: '', type: 'success' });
         
         const showToast = (message, type = 'success') => {
@@ -563,11 +587,10 @@
         };
 
         const locations = ref(['HK Watch Fair', 'Company', 'Overseas Fair', 'Others']);
-        const brands = ref(['Sunrex', 'Le Tandy', 'Fubu', 'Omax', 'Royal Collection', 'Others']);
+        const brands = ref(['Sunrex', 'Le Tandy', 'Fubu', 'Royal Collection', 'Others']);
         const selectedManageBrand = ref('Sunrex');
         const paymentMethods = ref(['Credit Card', 'Cash', 'FPS', 'PayMe', 'UnionPay', 'WeChat Pay', 'Alipay', 'Others']);
 
-        // 整合 gemini-code.js 的 defaultProductsData
         const defaultProductsData = {
           'Sunrex': [
             { model: 'Beta', modelNo: 'RX0001', hkd: 4200, usd: 530, image: `${GITHUB_IMAGE_BASE}/rx0001.png` },
@@ -591,15 +614,15 @@
             { model: 'Pilot (Picasso Jasper)', modelNo: 'LE4021V002', hkd: 10800, usd: 1380, image: null }
           ],
           'Fubu': [
-            { model: 'FB500 Chronograph', modelNo: '', hkd: 499, usd: 0, image: null },
-            { model: 'All In', modelNo: '', hkd: 299, usd: 0, image: null }
+            { model: 'FB500 Chronograph', modelNo: '', hkd: 499, usd: 65, image: null },
+            { model: 'All In', modelNo: '', hkd: 299, usd: 40, image: null }
           ],
           'Royal Collection': [
-            { model: 'Ear Ring', modelNo: '', hkd: 499, usd: 0, image: null },
-            { model: 'Necklace', modelNo: '', hkd: 299, usd: 0, image: null },
+            { model: 'Ear Ring', modelNo: '', hkd: 499, usd: 65, image: null },
+            { model: 'Necklace', modelNo: '', hkd: 299, usd: 40, image: null },
             { model: 'Ring', modelNo: '', hkd: 0, usd: 0, image: null },
             { model: 'Bracelet', modelNo: '', hkd: 0, usd: 0, image: null },
-            { model: 'Watch', modelNo: '', hkd: 3280, usd: 0, image: null }
+            { model: 'Watch', modelNo: '', hkd: 3280, usd: 420, image: null }
           ]
         };
 
@@ -620,7 +643,7 @@
         const editForm = ref({});
 
         const receiptItems = ref([]);
-        const receiptMeta = ref({ id: '', datetime: '', location: '', currency: 'HKD', grandTotal: 0 });
+        const receiptMeta = ref({ id: '', datetime: '', location: '', totalsByCurrency: {} });
 
         const selectedChopMode = ref('none');
         const activeCompanyChop = ref(null);
@@ -632,6 +655,8 @@
 
         onMounted(async () => {
           const sCompany = await storage.getItem('companyName'); if (sCompany) companyName.value = sCompany;
+          const sCurrency = await storage.getItem('defaultCurrency'); if (sCurrency) defaultCurrency.value = sCurrency;
+          const sExRate = await storage.getItem('exchangeRate'); if (sExRate !== null) exchangeRate.value = sExRate;
           const sProducts = await storage.getItem('productsData'); if (sProducts) productsData.value = sProducts;
           const sRecords = await storage.getItem('salesRecords'); if (sRecords) salesRecords.value = sRecords;
           const sChopMode = await storage.getItem('selectedChopMode'); if (sChopMode) selectedChopMode.value = sChopMode;
@@ -662,12 +687,17 @@
         };
 
         const onBrandChange = () => { form.value.productIndex = -1; form.value.modelName = ''; form.value.originalPrice = 0; calculateTotal(); };
+        
+        // 3) Sales Entry因應setting選擇的貨幣而顯示相應型號不同貨幣的預設金額，如無則顯示0
         const onProductChange = () => {
           const idx = form.value.productIndex;
           if (idx !== -1 && currentProducts.value[idx]) {
             const p = currentProducts.value[idx];
             form.value.modelName = p.model + (p.modelNo ? ` (${p.modelNo})` : '');
-            form.value.originalPrice = p.hkd || 0;
+            
+            const currKey = defaultCurrency.value.toLowerCase(); // 'hkd' or 'usd'
+            form.value.originalPrice = p[currKey] !== undefined ? p[currKey] : 0;
+            
             if (p.image) form.value.image = p.image;
             calculateTotal();
           }
@@ -708,14 +738,13 @@
           if (!form.value.modelName && !form.value.image) {
             return showToast('Please enter model name or attach a photo', 'error');
           }
-const now = new Date();
-// 取得本地 YYYY-MM-DD 日期
-const year = now.getFullYear();
-const month = String(now.getMonth() + 1).padStart(2, '0');
-const day = String(now.getDate()).padStart(2, '0');
-const dStr = `${year}-${month}-${day}`;
-
-const tStr = now.toTimeString().slice(0,5);
+          
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const day = String(now.getDate()).padStart(2, '0');
+          const dStr = `${year}-${month}-${day}`;
+          const tStr = now.toTimeString().slice(0,5);
 
           const newRecord = {
             id: 'INV' + Date.now().toString().slice(-6), 
@@ -769,18 +798,41 @@ const tStr = now.toTimeString().slice(0,5);
           }
         };
 
+        // 4) Records頁print receipt時不同貨幣要分開加總
         const printCombinedReceipt = () => {
           const items = salesRecords.value.filter(r => selectedRecordIds.value.includes(r.id));
           if (!items.length) return;
+          
+          const totalsByCurrency = {};
+          items.forEach(item => {
+            const curr = item.currency || 'HKD';
+            if (!totalsByCurrency[curr]) totalsByCurrency[curr] = 0;
+            totalsByCurrency[curr] += item.total;
+          });
+
           receiptItems.value = items;
           receiptMeta.value = {
             id: 'REC' + Date.now().toString().slice(-6),
-            datetime: items[0].datetime, location: items[0].location, currency: items[0].currency || defaultCurrency.value,
-            grandTotal: items.reduce((sum, item) => sum + item.total, 0)
+            datetime: items[0].datetime, 
+            location: items[0].location,
+            totalsByCurrency
           };
           setTimeout(() => window.print(), 100);
         };
 
+        // 貨幣轉換輔助函數
+        const convertCurrency = (amount, fromCurr, toCurr) => {
+          const rate = exchangeRate.value > 0 ? exchangeRate.value : 7.85;
+          const from = fromCurr || 'HKD';
+          const to = toCurr || 'HKD';
+
+          if (from === to) return amount;
+          if (from === 'USD' && to === 'HKD') return amount * rate;
+          if (from === 'HKD' && to === 'USD') return amount / rate;
+          return amount;
+        };
+
+        // 5) Reports頁根據setting選擇的貨幣及兌換率換算後加總
         const reportData = computed(() => {
           const filtered = salesRecords.value.filter(r => r.rawDate >= reportStartDate.value && r.rawDate <= reportEndDate.value);
           const brandBreakdown = {};
@@ -794,10 +846,13 @@ const tStr = now.toTimeString().slice(0,5);
             if (!brandBreakdown[r.brand][r.modelName]) brandBreakdown[r.brand][r.modelName] = 0;
             brandBreakdown[r.brand][r.modelName] += r.quantity;
 
+            // 匯率換算
+            const convertedTotal = convertCurrency(r.total, r.currency, defaultCurrency.value);
+
             if (paymentBreakdown[r.paymentMethod]) {
-              paymentBreakdown[r.paymentMethod].total += r.total;
+              paymentBreakdown[r.paymentMethod].total += convertedTotal;
             }
-            totalSalesAmount += r.total;
+            totalSalesAmount += convertedTotal;
           });
 
           return { brandBreakdown, paymentBreakdown, totalSalesAmount };
@@ -816,12 +871,14 @@ const tStr = now.toTimeString().slice(0,5);
             
             dateSet.add(date);
 
+            const convertedTotal = convertCurrency(r.total, r.currency, defaultCurrency.value);
+
             if (!matrix[date]) matrix[date] = {};
             if (!matrix[date][pm]) matrix[date][pm] = 0;
-            matrix[date][pm] += r.total;
+            matrix[date][pm] += convertedTotal;
 
             if (!dailyTotals[date]) dailyTotals[date] = 0;
-            dailyTotals[date] += r.total;
+            dailyTotals[date] += convertedTotal;
           });
 
           const sortedDates = Array.from(dateSet).sort((a, b) => b.localeCompare(a));
@@ -834,15 +891,19 @@ const tStr = now.toTimeString().slice(0,5);
           };
         });
 
-        const saveSettings = async () => { await storage.setItem('companyName', companyName.value); await storage.setItem('defaultCurrency', defaultCurrency.value); };
+        const saveSettings = async () => { 
+          await storage.setItem('companyName', companyName.value); 
+          await storage.setItem('defaultCurrency', defaultCurrency.value); 
+          await storage.setItem('exchangeRate', exchangeRate.value);
+        };
         const saveProducts = async () => { await storage.setItem('productsData', productsData.value); };
+        
         const addNewProductToManage = () => {
           if (!productsData.value[selectedManageBrand.value]) productsData.value[selectedManageBrand.value] = [];
-          productsData.value[selectedManageBrand.value].push({ model: 'New Model', modelNo: '', hkd: 0, image: null });
+          productsData.value[selectedManageBrand.value].push({ model: 'New Model', modelNo: '', hkd: 0, usd: 0, image: null });
           saveProducts();
         };
 
-        // 整合 gemini-code.js 的 handleChopModeChange 邏輯
         const handleChopModeChange = async () => {
           if (selectedChopMode.value === 'custom') return;
           if (selectedChopMode.value === 'none') {
@@ -909,7 +970,7 @@ const tStr = now.toTimeString().slice(0,5);
           if (!salesRecords.value.length) return showToast('No records to export', 'error');
           const data = salesRecords.value.map(r => ({
             ID: r.id, Date: r.datetime, Location: r.location, Brand: r.brand,
-            Model: r.modelName, Qty: r.quantity, Price: r.price, Total: r.total,
+            Model: r.modelName, Qty: r.quantity, Currency: r.currency || 'HKD', Price: r.price, Total: r.total,
             Payment: r.paymentMethod, Notes: r.notes || ''
           }));
           const ws = XLSX.utils.json_to_sheet(data);
@@ -918,7 +979,6 @@ const tStr = now.toTimeString().slice(0,5);
           XLSX.writeFile(wb, `Sales_Records_${new Date().toISOString().slice(0,10)}.xlsx`);
         };
 
-        // --- CSV 匯出與匯入功能 ---
         const exportSalesCSV = () => {
           if (!salesRecords.value.length) return showToast('No records to export', 'error');
           
@@ -930,7 +990,7 @@ const tStr = now.toTimeString().slice(0,5);
             return `"${str}"`;
           };
 
-          let csvContent = '\uFEFF'; // BOM 特殊字元防止中文亂碼
+          let csvContent = '\uFEFF';
           csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
 
           salesRecords.value.forEach(record => {
@@ -1024,7 +1084,7 @@ const tStr = now.toTimeString().slice(0,5);
         };
 
         return {
-          activeTab, companyName, defaultCurrency, locations, brands, selectedManageBrand, paymentMethods,
+          activeTab, companyName, defaultCurrency, exchangeRate, locations, brands, selectedManageBrand, paymentMethods,
           productsData, currentProducts, salesRecords, selectedRecordIds, form, receiptItems, receiptMeta,
           reportStartDate, reportEndDate, reportData, dailyPaymentBreakdown, toast, isScanning, selectedChopMode, activeCompanyChop,
           editingRecord, editForm,
