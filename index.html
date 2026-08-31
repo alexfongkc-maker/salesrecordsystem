@@ -428,10 +428,7 @@
             <div class="flex items-center gap-4">
               <select v-model="selectedChopMode" @change="handleChopModeChange" class="border rounded-lg p-2 bg-white flex-1">
                 <option value="none">No Chop</option>
-                <option value="bridgestone.png">Bridgestone</option>
-                <option value="sutec.png">Sutec</option>
-                <option value="letandy.png">Le Tandy</option>
-                <option value="custom">Upload Custom Chop...</option>
+                <option value="custom">Upload Chop...</option>
               </select>
               <input v-show="selectedChopMode === 'custom'" type="file" accept="image/*" @change="uploadCustomChop" class="text-sm">
             </div>
