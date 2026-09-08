@@ -177,16 +177,25 @@
     <!-- Tab 2: Records & Multi-Receipt -->
     <div v-if="activeTab === 'records'" class="space-y-6 no-print">
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
             <h2 class="text-lg font-bold text-gray-800">Sales Records</h2>
-            <p class="text-xs text-gray-500">Select records to print combined receipt.</p>
+            <p class="text-xs text-gray-500">Select records to print combined receipt or custom sales report.</p>
           </div>
-          <div class="flex gap-2">
-            <button @click="printCombinedReceipt" :disabled="selectedRecordIds.length === 0" :class="selectedRecordIds.length > 0 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'" class="px-4 py-2 text-sm rounded-lg shadow transition">
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Custom Date Selector for Print Report -->
+            <div class="flex items-center gap-1 bg-gray-50 p-1.5 rounded-lg border text-xs">
+              <span class="text-gray-500 font-medium">Report Date:</span>
+              <input type="date" v-model="customReportDate" class="border rounded px-1 py-0.5 bg-white text-xs">
+            </div>
+
+            <button @click="printCombinedReceipt" :disabled="selectedRecordIds.length === 0" :class="selectedRecordIds.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-200 text-gray-400'" class="px-3 py-2 text-xs md:text-sm font-medium rounded-lg shadow transition">
               Print Receipt ({{ selectedRecordIds.length }})
             </button>
-            <button @click="exportToExcel" class="px-4 py-2 bg-green-600 text-white text-sm rounded-lg shadow">Export Excel</button>
+            <button @click="printReport" :disabled="selectedRecordIds.length === 0" :class="selectedRecordIds.length > 0 ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-200 text-gray-400'" class="px-3 py-2 text-xs md:text-sm font-medium rounded-lg shadow transition">
+              Print Report ({{ selectedRecordIds.length }})
+            </button>
+            <button @click="exportToExcel" class="px-3 py-2 bg-green-600 text-white text-xs md:text-sm rounded-lg shadow">Export Excel</button>
           </div>
         </div>
         <div class="overflow-x-auto">
@@ -322,7 +331,7 @@
         <div class="flex justify-between items-center border-b pb-2">
           <div>
             <h2 class="text-lg font-bold text-gray-800">Sales Summary Reports</h2>
-            <p class="text-xs text-gray-500">Converted & Converted into {{ defaultCurrency }} (Rate: 1 USD = {{ exchangeRate }} HKD)</p>
+            <p class="text-xs text-gray-500">Converted into {{ defaultCurrency }} (Rate: 1 USD = {{ exchangeRate }} HKD)</p>
           </div>
           <button @click="resetReportDates" class="px-3 py-1 bg-gray-100 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-200">Reset Today</button>
         </div>
@@ -417,7 +426,6 @@
             </select>
           </div>
 
-          <!-- 2) Setting增加USD<>HK兌換率欄，預設為7.85及可修改 -->
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">USD to HKD Exchange Rate</label>
             <input type="number" step="0.01" v-model.number="exchangeRate" @change="saveSettings" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500" placeholder="7.85">
@@ -456,7 +464,7 @@
         </div>
       </div>
 
-      <!-- 1) Preset Product Catalog顯示回預設USD -->
+      <!-- Preset Product Catalog -->
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
         <div class="flex justify-between items-center border-b pb-2">
           <h2 class="text-lg font-bold text-gray-800">Preset Product Catalog</h2>
@@ -490,16 +498,17 @@
       </div>
     </div>
 
-    <!-- Printable Combined Receipt (A4 Optimized) -->
+    <!-- Printable Area (Receipt or Report) -->
     <div id="printable-receipt" class="hidden print:block bg-white text-black">
       <div class="text-center border-b-2 border-black pb-6 mb-6">
         <h1 class="text-3xl font-extrabold uppercase tracking-wide">{{ companyName }}</h1>
-        <p class="text-sm text-gray-600 mt-1">OFFICIAL SALES RECEIPT</p>
+        <p class="text-sm text-gray-600 mt-1 uppercase font-bold">{{ printType === 'report' ? 'Sales Report' : 'Official Sales Receipt' }}</p>
       </div>
 
       <div v-if="receiptItems.length > 0" class="space-y-4">
         <div class="flex justify-between text-base font-medium">
-          <span>Receipt No: {{ receiptMeta.id }}</span>
+          <span v-if="printType === 'receipt'">Receipt No: {{ receiptMeta.id }}</span>
+          <span v-else></span>
           <span>Date: {{ receiptMeta.datetime }}</span>
         </div>
         <div class="text-base">Location: {{ receiptMeta.location }}</div>
@@ -530,7 +539,7 @@
           </tbody>
         </table>
 
-        <!-- 4) Records頁print receipt時不同貨幣要分開加總 -->
+        <!-- Total Summaries by Currency -->
         <div class="flex justify-end pt-4">
           <div class="w-1/2 space-y-2">
             <div v-for="(subtotal, curr) in receiptMeta.totalsByCurrency" :key="curr" class="flex justify-between font-bold text-xl border-b border-gray-300 pb-1">
@@ -540,13 +549,36 @@
           </div>
         </div>
 
+        <!-- Payment Method Breakdown Section (Appears only when printing Report) -->
+        <div v-if="printType === 'report' && receiptMeta.paymentBreakdown" class="mt-8 pt-4 border-t-2 border-gray-800">
+          <h3 class="text-lg font-bold mb-3 uppercase tracking-wide">Payment Method Breakdown</h3>
+          <table class="w-full text-left text-sm border border-gray-300">
+            <thead>
+              <tr class="bg-gray-100 border-b border-gray-300">
+                <th class="p-2 font-bold">Payment Method</th>
+                <th class="p-2 text-right font-bold">Breakdown Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(amounts, pm) in receiptMeta.paymentBreakdown" :key="pm" class="border-b border-gray-200">
+                <td class="p-2 font-medium">{{ pm }}</td>
+                <td class="p-2 text-right font-bold">
+                  <div v-for="(amt, curr) in amounts" :key="curr">
+                    {{ curr }} {{ amt.toFixed(2) }}
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <div class="relative h-32 mt-12">
           <div v-if="activeCompanyChop" class="absolute right-10 bottom-0">
             <img :src="activeCompanyChop" class="w-32 h-32 object-contain opacity-90" />
           </div>
         </div>
 
-        <div class="text-center border-t border-gray-300 pt-6 mt-8 text-sm text-gray-500 font-medium">
+        <div v-if="printType === 'receipt'" class="text-center border-t border-gray-300 pt-6 mt-8 text-sm text-gray-500 font-medium">
           Thank you for your business!
         </div>
       </div>
@@ -575,7 +607,7 @@
         const activeTab = ref('entry');
         const companyName = ref('Bridgestone Watch Limited');
         const defaultCurrency = ref('HKD');
-        const exchangeRate = ref(7.85); // 2) 預設 7.85
+        const exchangeRate = ref(7.85);
         const toast = ref({ show: false, message: '', type: 'success' });
         
         const showToast = (message, type = 'success') => {
@@ -626,8 +658,9 @@
         const productsData = ref(defaultProductsData);
         const salesRecords = ref([]);
         const selectedRecordIds = ref([]);
-        const reportStartDate = ref(new Date().toISOString().slice(0,10));
-        const reportEndDate = ref(new Date().toISOString().slice(0,10));
+        const customReportDate = ref(new Date().toISOString().slice(0, 10));
+        const reportStartDate = ref(new Date().toISOString().slice(0, 10));
+        const reportEndDate = ref(new Date().toISOString().slice(0, 10));
 
         const form = ref({
           location: 'HK Watch Fair', brand: 'Sunrex', productIndex: -1, modelName: '',
@@ -639,8 +672,9 @@
         const editingIndex = ref(-1);
         const editForm = ref({});
 
+        const printType = ref('receipt'); // 'receipt' or 'report'
         const receiptItems = ref([]);
-        const receiptMeta = ref({ id: '', datetime: '', location: '', totalsByCurrency: {} });
+        const receiptMeta = ref({ id: '', datetime: '', location: '', totalsByCurrency: {}, paymentBreakdown: null });
 
         const selectedChopMode = ref('none');
         const activeCompanyChop = ref(null);
@@ -685,16 +719,13 @@
 
         const onBrandChange = () => { form.value.productIndex = -1; form.value.modelName = ''; form.value.originalPrice = 0; calculateTotal(); };
         
-        // 3) Sales Entry因應setting選擇的貨幣而顯示相應型號不同貨幣的預設金額，如無則顯示0
         const onProductChange = () => {
           const idx = form.value.productIndex;
           if (idx !== -1 && currentProducts.value[idx]) {
             const p = currentProducts.value[idx];
             form.value.modelName = p.model + (p.modelNo ? ` (${p.modelNo})` : '');
-            
-            const currKey = defaultCurrency.value.toLowerCase(); // 'hkd' or 'usd'
+            const currKey = defaultCurrency.value.toLowerCase();
             form.value.originalPrice = p[currKey] !== undefined ? p[currKey] : 0;
-            
             if (p.image) form.value.image = p.image;
             calculateTotal();
           }
@@ -795,11 +826,12 @@
           }
         };
 
-        // 4) Records頁print receipt時不同貨幣要分開加總
+        // 1) Print Combined Receipt
         const printCombinedReceipt = () => {
           const items = salesRecords.value.filter(r => selectedRecordIds.value.includes(r.id));
           if (!items.length) return;
           
+          printType.value = 'receipt';
           const totalsByCurrency = {};
           items.forEach(item => {
             const curr = item.currency || 'HKD';
@@ -812,12 +844,50 @@
             id: 'REC' + Date.now().toString().slice(-6),
             datetime: items[0].datetime, 
             location: items[0].location,
-            totalsByCurrency
+            totalsByCurrency,
+            paymentBreakdown: null
           };
           setTimeout(() => window.print(), 100);
         };
 
-        // 貨幣轉換輔助函數
+        // 2) Print Report (以 Brand 排序，自訂日期，顯示 Payment Breakdown)
+        const printReport = () => {
+          const items = salesRecords.value.filter(r => selectedRecordIds.value.includes(r.id));
+          if (!items.length) return;
+
+          printType.value = 'report';
+
+          // 項目改以 Brand 排序
+          const sortedItems = [...items].sort((a, b) => (a.brand || '').localeCompare(b.brand || ''));
+
+          const totalsByCurrency = {};
+          const paymentBreakdown = {};
+
+          sortedItems.forEach(item => {
+            const curr = item.currency || 'HKD';
+            const pm = item.paymentMethod || 'Others';
+
+            // 貨幣加總
+            if (!totalsByCurrency[curr]) totalsByCurrency[curr] = 0;
+            totalsByCurrency[curr] += item.total;
+
+            // Payment Breakdown
+            if (!paymentBreakdown[pm]) paymentBreakdown[pm] = {};
+            if (!paymentBreakdown[pm][curr]) paymentBreakdown[pm][curr] = 0;
+            paymentBreakdown[pm][curr] += item.total;
+          });
+
+          receiptItems.value = sortedItems;
+          receiptMeta.value = {
+            id: '',
+            datetime: customReportDate.value || new Date().toISOString().slice(0, 10),
+            location: sortedItems[0].location,
+            totalsByCurrency,
+            paymentBreakdown
+          };
+          setTimeout(() => window.print(), 100);
+        };
+
         const convertCurrency = (amount, fromCurr, toCurr) => {
           const rate = exchangeRate.value > 0 ? exchangeRate.value : 7.85;
           const from = fromCurr || 'HKD';
@@ -829,7 +899,6 @@
           return amount;
         };
 
-        // 5) Reports頁根據setting選擇的貨幣及兌換率換算後加總
         const reportData = computed(() => {
           const filtered = salesRecords.value.filter(r => r.rawDate >= reportStartDate.value && r.rawDate <= reportEndDate.value);
           const brandBreakdown = {};
@@ -843,7 +912,6 @@
             if (!brandBreakdown[r.brand][r.modelName]) brandBreakdown[r.brand][r.modelName] = 0;
             brandBreakdown[r.brand][r.modelName] += r.quantity;
 
-            // 匯率換算
             const convertedTotal = convertCurrency(r.total, r.currency, defaultCurrency.value);
 
             if (paymentBreakdown[r.paymentMethod]) {
@@ -857,7 +925,6 @@
 
         const dailyPaymentBreakdown = computed(() => {
           const filtered = salesRecords.value.filter(r => r.rawDate >= reportStartDate.value && r.rawDate <= reportEndDate.value);
-          
           const dateSet = new Set();
           const matrix = {};
           const dailyTotals = {};
@@ -865,7 +932,6 @@
           filtered.forEach(r => {
             const date = r.rawDate;
             const pm = r.paymentMethod || 'Others';
-            
             dateSet.add(date);
 
             const convertedTotal = convertCurrency(r.total, r.currency, defaultCurrency.value);
@@ -978,7 +1044,6 @@
 
         const exportSalesCSV = () => {
           if (!salesRecords.value.length) return showToast('No records to export', 'error');
-          
           const headers = ['id', 'rawDate', 'datetime', 'location', 'brand', 'modelName', 'originalPrice', 'price', 'quantity', 'total', 'discountRate', 'paymentMethod', 'currency', 'notes', 'image', 'timestamp'];
           
           const escapeCSVField = (field) => {
@@ -1082,10 +1147,10 @@
 
         return {
           activeTab, companyName, defaultCurrency, exchangeRate, locations, brands, selectedManageBrand, paymentMethods,
-          productsData, currentProducts, salesRecords, selectedRecordIds, form, receiptItems, receiptMeta,
-          reportStartDate, reportEndDate, reportData, dailyPaymentBreakdown, toast, isScanning, selectedChopMode, activeCompanyChop,
+          productsData, currentProducts, salesRecords, selectedRecordIds, form, printType, receiptItems, receiptMeta,
+          customReportDate, reportStartDate, reportEndDate, reportData, dailyPaymentBreakdown, toast, isScanning, selectedChopMode, activeCompanyChop,
           editingRecord, editForm,
-          syncRecords, calculateTotal, onTotalChange, onBrandChange, onProductChange, submitSale, printCombinedReceipt,
+          syncRecords, calculateTotal, onTotalChange, onBrandChange, onProductChange, submitSale, printCombinedReceipt, printReport,
           saveSettings, saveProducts, addNewProductToManage, handleProductImage, startBarcodeScan, stopBarcodeScan,
           handleChopModeChange, uploadCustomChop, captureEntryImage, openEditModal, updateEditTotal, captureEditImage, saveEditedRecord, exportToExcel,
           exportSalesCSV, importSalesCSV,
