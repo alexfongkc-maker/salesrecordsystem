@@ -69,7 +69,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">POS Location</label>
-            <select v-model="form.location" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
+            <select v-model="form.location" @change="onLocationChange" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
               <option v-for="loc in locations" :key="loc" :value="loc">{{ loc }}</option>
             </select>
           </div>
@@ -158,13 +158,36 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-            <select v-model="form.paymentMethod" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
+            <select v-model="form.paymentMethod" @change="onPaymentMethodChange" class="w-full border rounded-lg p-2 bg-white focus:ring-2 focus:ring-blue-500">
               <option v-for="pm in paymentMethods" :key="pm" :value="pm">{{ pm }}</option>
             </select>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
             <input type="text" v-model="form.notes" placeholder="Optional notes..." class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+          </div>
+        </div>
+
+        <!-- 1) 新增 Customer Name, Email, Address, Telephone 欄位 -->
+        <div class="border-t pt-4 mt-2">
+          <h3 class="text-sm font-bold text-gray-700 mb-3">Customer Information</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+              <input type="text" v-model="form.customerName" placeholder="e.g. John Doe" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Telephone</label>
+              <input type="tel" v-model="form.customerTel" placeholder="e.g. +852 9123 4567" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" v-model="form.customerEmail" placeholder="e.g. customer@example.com" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+              <input type="text" v-model="form.customerAddress" placeholder="e.g. Flat A, 10/F, Tower 1..." class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+            </div>
           </div>
         </div>
 
@@ -207,6 +230,7 @@
                 <th class="p-2">Date & Time</th>
                 <th class="p-2">Location</th>
                 <th class="p-2">Brand / Model</th>
+                <th class="p-2">Customer</th>
                 <th class="p-2">Qty</th>
                 <th class="p-2">Total</th>
                 <th class="p-2">Payment</th>
@@ -223,6 +247,10 @@
                 <td class="p-2 text-xs">{{ item.datetime }}</td>
                 <td class="p-2">{{ item.location }}</td>
                 <td class="p-2"><div class="font-medium">{{ item.brand }}</div><div class="text-xs text-gray-500">{{ item.modelName }}</div></td>
+                <td class="p-2 text-xs">
+                  <div class="font-medium text-gray-800">{{ item.customerName || '-' }}</div>
+                  <div class="text-gray-400">{{ item.customerTel }}</div>
+                </td>
                 <td class="p-2">{{ item.quantity }}</td>
                 <td class="p-2 font-semibold">{{ item.currency || defaultCurrency }} {{ item.total }}</td>
                 <td class="p-2">{{ item.paymentMethod }}</td>
@@ -296,6 +324,26 @@
           <div>
             <label class="block font-medium text-gray-700">Notes</label>
             <input type="text" v-model="editForm.notes" class="w-full border rounded p-2">
+          </div>
+
+          <!-- 客戶編輯資料 -->
+          <div class="border-t pt-2 grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-medium text-gray-700">Customer Name</label>
+              <input type="text" v-model="editForm.customerName" class="w-full border rounded p-2">
+            </div>
+            <div>
+              <label class="block font-medium text-gray-700">Telephone</label>
+              <input type="text" v-model="editForm.customerTel" class="w-full border rounded p-2">
+            </div>
+            <div>
+              <label class="block font-medium text-gray-700">Email</label>
+              <input type="email" v-model="editForm.customerEmail" class="w-full border rounded p-2">
+            </div>
+            <div>
+              <label class="block font-medium text-gray-700">Address</label>
+              <input type="text" v-model="editForm.customerAddress" class="w-full border rounded p-2">
+            </div>
           </div>
 
           <div>
@@ -419,8 +467,9 @@
           </div>
 
           <div>
+            <!-- 2) 記憶 Settings Default Currency -->
             <label class="block text-sm font-medium text-gray-700 mb-1">Default Currency</label>
-            <select v-model="defaultCurrency" @change="saveSettings" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
+            <select v-model="defaultCurrency" @change="onCurrencyChange" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500">
               <option value="HKD">HKD ($)</option>
               <option value="USD">USD ($)</option>
             </select>
@@ -431,12 +480,16 @@
             <input type="number" step="0.01" v-model.number="exchangeRate" @change="saveSettings" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500" placeholder="7.85">
           </div>
 
+          <!-- 3) GitHub 預載公司印章方案 (Company Chops) -->
           <div class="col-span-1 md:col-span-3 p-4 bg-gray-50 rounded-lg border">
             <label class="block text-sm font-medium text-gray-700 mb-2">Receipt Company Chop (Stamp)</label>
             <div class="flex items-center gap-4">
               <select v-model="selectedChopMode" @change="handleChopModeChange" class="border rounded-lg p-2 bg-white flex-1">
                 <option value="none">No Chop</option>
-                <option value="custom">Upload Chop...</option>
+                <option value="chop-bridgestone.png">Bridgestone Watch Stamp (GitHub Preset)</option>
+                <option value="chop-sutec.png">Sutec (HK) Stamp (GitHub Preset)</option>
+                <option value="chop-letandy.png">Le Tandy Stamp (GitHub Preset)</option>
+                <option value="custom">Upload Custom Chop...</option>
               </select>
               <input v-show="selectedChopMode === 'custom'" type="file" accept="image/*" @change="uploadCustomChop" class="text-sm">
             </div>
@@ -512,6 +565,15 @@
           <span>Date: {{ receiptMeta.datetime }}</span>
         </div>
         <div class="text-base">Location: {{ receiptMeta.location }}</div>
+
+        <!-- 顯示客戶聯絡資料 -->
+        <div v-if="printType === 'receipt' && (receiptItems[0].customerName || receiptItems[0].customerTel || receiptItems[0].customerAddress)" class="border p-3 rounded-lg bg-gray-50 text-sm space-y-1 my-4">
+          <div class="font-bold text-gray-800">Customer Details:</div>
+          <div v-if="receiptItems[0].customerName">Name: {{ receiptItems[0].customerName }}</div>
+          <div v-if="receiptItems[0].customerTel">Tel: {{ receiptItems[0].customerTel }}</div>
+          <div v-if="receiptItems[0].customerEmail">Email: {{ receiptItems[0].customerEmail }}</div>
+          <div v-if="receiptItems[0].customerAddress">Address: {{ receiptItems[0].customerAddress }}</div>
+        </div>
 
         <table class="w-full text-left border-t border-b border-black py-4 my-6">
           <thead>
@@ -589,6 +651,7 @@
   <script>
     const { createApp, ref, computed, onMounted } = Vue;
 
+    // 3) GitHub 預載圖片 Base URL
     const GITHUB_CDN_BASE = 'https://cdn.jsdelivr.net/gh/alexfongkc/salesrecordsystem@main';
     const GITHUB_IMAGE_BASE = GITHUB_CDN_BASE;
 
@@ -620,6 +683,7 @@
         const selectedManageBrand = ref('Sunrex');
         const paymentMethods = ref(['Credit Card', 'Cash', 'FPS', 'PayMe', 'UnionPay', 'WeChat Pay', 'Alipay', 'Others']);
 
+        // 3) GitHub 預載圖片目錄路徑
         const defaultProductsData = {
           'Sunrex': [
             { model: 'Beta', modelNo: 'RX0001', hkd: 4200, usd: 530, image: `${GITHUB_IMAGE_BASE}/rx0001.png` },
@@ -662,10 +726,12 @@
         const reportStartDate = ref(new Date().toISOString().slice(0, 10));
         const reportEndDate = ref(new Date().toISOString().slice(0, 10));
 
+        // 1) 表單加入 Customer Name, Email, Address, Telephone 狀態
         const form = ref({
           location: 'HK Watch Fair', brand: 'Sunrex', productIndex: -1, modelName: '',
           originalPrice: 0, actualUnitPrice: 0, quantity: 1, total: 0, discountRate: 0,
-          paymentMethod: 'Credit Card', notes: '', image: null
+          paymentMethod: 'Credit Card', notes: '', image: null,
+          customerName: '', customerEmail: '', customerAddress: '', customerTel: ''
         });
 
         const editingRecord = ref(null);
@@ -692,7 +758,38 @@
           const sRecords = await storage.getItem('salesRecords'); if (sRecords) salesRecords.value = sRecords;
           const sChopMode = await storage.getItem('selectedChopMode'); if (sChopMode) selectedChopMode.value = sChopMode;
           const sChopData = await storage.getItem('activeCompanyChop'); if (sChopData) activeCompanyChop.value = sChopData;
+
+          // 2) 載入記憶的上一次選擇
+          const lastLoc = await storage.getItem('last_pos_location');
+          if (lastLoc && locations.value.includes(lastLoc)) form.value.location = lastLoc;
+
+          const lastBrand = await storage.getItem('last_brand');
+          if (lastBrand && brands.value.includes(lastBrand)) form.value.brand = lastBrand;
+
+          const lastPayMethod = await storage.getItem('last_payment_method');
+          if (lastPayMethod && paymentMethods.value.includes(lastPayMethod)) form.value.paymentMethod = lastPayMethod;
         });
+
+        // 2) 記憶選擇 handler
+        const onLocationChange = async () => {
+          await storage.setItem('last_pos_location', form.value.location);
+        };
+
+        const onBrandChange = async () => {
+          await storage.setItem('last_brand', form.value.brand);
+          form.value.productIndex = -1;
+          form.value.modelName = '';
+          form.value.originalPrice = 0;
+          calculateTotal();
+        };
+
+        const onPaymentMethodChange = async () => {
+          await storage.setItem('last_payment_method', form.value.paymentMethod);
+        };
+
+        const onCurrencyChange = async () => {
+          await saveSettings();
+        };
 
         const syncRecords = async () => {
           showToast(`Syncing ${form.value.location} data with server...`);
@@ -717,8 +814,6 @@
           }
         };
 
-        const onBrandChange = () => { form.value.productIndex = -1; form.value.modelName = ''; form.value.originalPrice = 0; calculateTotal(); };
-        
         const onProductChange = () => {
           const idx = form.value.productIndex;
           if (idx !== -1 && currentProducts.value[idx]) {
@@ -795,6 +890,10 @@
           form.value.total = 0;
           form.value.notes = '';
           form.value.image = null;
+          form.value.customerName = '';
+          form.value.customerEmail = '';
+          form.value.customerAddress = '';
+          form.value.customerTel = '';
         };
 
         const openEditModal = (item, index) => {
@@ -850,14 +949,13 @@
           setTimeout(() => window.print(), 100);
         };
 
-        // 2) Print Report (以 Brand 排序，自訂日期，顯示 Payment Breakdown)
+        // 2) Print Report
         const printReport = () => {
           const items = salesRecords.value.filter(r => selectedRecordIds.value.includes(r.id));
           if (!items.length) return;
 
           printType.value = 'report';
 
-          // 項目改以 Brand 排序
           const sortedItems = [...items].sort((a, b) => (a.brand || '').localeCompare(b.brand || ''));
 
           const totalsByCurrency = {};
@@ -867,11 +965,9 @@
             const curr = item.currency || 'HKD';
             const pm = item.paymentMethod || 'Others';
 
-            // 貨幣加總
             if (!totalsByCurrency[curr]) totalsByCurrency[curr] = 0;
             totalsByCurrency[curr] += item.total;
 
-            // Payment Breakdown
             if (!paymentBreakdown[pm]) paymentBreakdown[pm] = {};
             if (!paymentBreakdown[pm][curr]) paymentBreakdown[pm][curr] = 0;
             paymentBreakdown[pm][curr] += item.total;
@@ -1033,7 +1129,9 @@
           if (!salesRecords.value.length) return showToast('No records to export', 'error');
           const data = salesRecords.value.map(r => ({
             ID: r.id, Date: r.datetime, Location: r.location, Brand: r.brand,
-            Model: r.modelName, Qty: r.quantity, Currency: r.currency || 'HKD', Price: r.price, Total: r.total,
+            Model: r.modelName, CustomerName: r.customerName || '', CustomerTel: r.customerTel || '',
+            CustomerEmail: r.customerEmail || '', CustomerAddress: r.customerAddress || '',
+            Qty: r.quantity, Currency: r.currency || 'HKD', Price: r.price, Total: r.total,
             Payment: r.paymentMethod, Notes: r.notes || ''
           }));
           const ws = XLSX.utils.json_to_sheet(data);
@@ -1044,7 +1142,7 @@
 
         const exportSalesCSV = () => {
           if (!salesRecords.value.length) return showToast('No records to export', 'error');
-          const headers = ['id', 'rawDate', 'datetime', 'location', 'brand', 'modelName', 'originalPrice', 'price', 'quantity', 'total', 'discountRate', 'paymentMethod', 'currency', 'notes', 'image', 'timestamp'];
+          const headers = ['id', 'rawDate', 'datetime', 'location', 'brand', 'modelName', 'originalPrice', 'price', 'quantity', 'total', 'discountRate', 'paymentMethod', 'currency', 'notes', 'customerName', 'customerTel', 'customerEmail', 'customerAddress', 'image', 'timestamp'];
           
           const escapeCSVField = (field) => {
             if (field === null || field === undefined) return '""';
@@ -1150,7 +1248,7 @@
           productsData, currentProducts, salesRecords, selectedRecordIds, form, printType, receiptItems, receiptMeta,
           customReportDate, reportStartDate, reportEndDate, reportData, dailyPaymentBreakdown, toast, isScanning, selectedChopMode, activeCompanyChop,
           editingRecord, editForm,
-          syncRecords, calculateTotal, onTotalChange, onBrandChange, onProductChange, submitSale, printCombinedReceipt, printReport,
+          syncRecords, calculateTotal, onTotalChange, onBrandChange, onLocationChange, onPaymentMethodChange, onCurrencyChange, onProductChange, submitSale, printCombinedReceipt, printReport,
           saveSettings, saveProducts, addNewProductToManage, handleProductImage, startBarcodeScan, stopBarcodeScan,
           handleChopModeChange, uploadCustomChop, captureEntryImage, openEditModal, updateEditTotal, captureEditImage, saveEditedRecord, exportToExcel,
           exportSalesCSV, importSalesCSV,
@@ -1164,6 +1262,3 @@
   </script>
 </body>
 </html>
-
-        <div v-show="isScanning" class="border-2 border-dashed border-gray-300 p-2 rounded-xl relative bg-black">
-          <button @click="stopBarcodeScan" class="absolute top-2 right-2 z-10 bg-red-600 text-
